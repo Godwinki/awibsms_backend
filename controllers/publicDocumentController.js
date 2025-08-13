@@ -357,6 +357,40 @@ exports.downloadDocument = async (req, res) => {
     
     // Increment download count
     await document.increment('downloadCount');
+
+    // Attempt to automatically log the download (non-blocking)
+    (async () => {
+      try {
+        // Derive a safe downloadType that matches validation
+        // Allowed: CONTRACT, COLLATERAL, LOAN_APPLICATION, GENERAL_FORM
+        let downloadType = 'GENERAL_FORM';
+        const dt = (document.documentType || '').toUpperCase();
+        if (['CONTRACT','COLLATERAL','LOAN_APPLICATION','GENERAL_FORM'].includes(dt)) {
+          downloadType = dt;
+        } else if (dt.includes('LOAN')) {
+          downloadType = 'LOAN_APPLICATION';
+        }
+
+        await DownloadLog.create({
+          memberName: 'Guest',
+            // Public download default placeholders; can be updated via /log-download endpoint later
+          memberAccountNumber: null,
+          documentId: document.id,
+          documentTitle: document.title,
+          documentCategory: document.category,
+          downloadType,
+          phoneNumber: null,
+          loanAmount: null,
+          ipAddress: req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || null,
+          userAgent: req.get('User-Agent'),
+          verified: false,
+          downloadedAt: new Date()
+        });
+        console.log('🧾 [DownloadLog] Auto log created for document', document.id);
+      } catch (logErr) {
+        console.log('⚠️ [DownloadLog] Auto logging failed (non-blocking):', logErr.message);
+      }
+    })();
     
     // Set appropriate headers
     res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
@@ -418,7 +452,8 @@ exports.logDownload = async (req, res) => {
       downloadType,
       phoneNumber,
       loanAmount,
-      verified = false
+  verified = false,
+  location
     } = req.body;
 
     if (!memberName || !documentId || !downloadType) {
@@ -439,6 +474,22 @@ exports.logDownload = async (req, res) => {
     const userAgent = req.get('User-Agent');
 
     // Create download log entry
+    // Build location payload (optional)
+    let locationPayload = null;
+    if (location && typeof location === 'object') {
+      const {
+        country = null,
+        region = null,
+        city = null,
+        latitude = location.latitude || location.lat || null,
+        longitude = location.longitude || location.lon || null,
+        accuracy = location.accuracy || null,
+        timezone = location.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+        ...rest
+      } = location;
+      locationPayload = { country, region, city, latitude, longitude, accuracy, timezone, ...rest };
+    }
+
     const downloadLog = await DownloadLog.create({
       memberName,
       memberAccountNumber,
@@ -451,6 +502,7 @@ exports.logDownload = async (req, res) => {
       ipAddress,
       userAgent,
       verified,
+      location: locationPayload,
       downloadedAt: new Date()
     });
 
@@ -458,7 +510,8 @@ exports.logDownload = async (req, res) => {
     res.status(201).json({
       emoji: '📊',
       message: 'Download logged successfully',
-      logId: downloadLog.id
+      logId: downloadLog.id,
+      location: downloadLog.location
     });
 
   } catch (error) {
