@@ -350,3 +350,47 @@ exports.getDocumentTypes = async (req, res) => {
     res.status(500).json({ emoji: '❌', error: error.message });
   }
 };
+
+// Download a public document by ID
+exports.downloadDocument = async (req, res) => {
+  console.log(`📥 [PublicDocument] Download request for document: ${req.params.id}`);
+  try {
+    const document = await PublicDocument.findByPk(req.params.id);
+    
+    if (!document) {
+      console.log(`⚠️ [PublicDocument] Document not found: ${req.params.id}`);
+      return res.status(404).json({ emoji: '⚠️', error: 'Document not found' });
+    }
+    
+    if (!document.isActive || !document.isPublic) {
+      console.log(`⚠️ [PublicDocument] Document not available: ${req.params.id}`);
+      return res.status(404).json({ emoji: '⚠️', error: 'Document not available' });
+    }
+    
+    // Check if file exists
+    const fs = require('fs');
+    const path = require('path');
+    
+    if (!fs.existsSync(document.filePath)) {
+      console.log(`⚠️ [PublicDocument] File not found on disk: ${document.filePath}`);
+      return res.status(404).json({ emoji: '⚠️', error: 'File not found' });
+    }
+    
+    // Increment download count
+    await document.increment('downloadCount');
+    
+    // Set appropriate headers
+    res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${document.originalName}"`);
+    res.setHeader('Content-Length', document.fileSize);
+    
+    // Stream the file
+    const fileStream = fs.createReadStream(document.filePath);
+    fileStream.pipe(res);
+    
+    console.log(`✅ [PublicDocument] File downloaded: ${document.originalName}`);
+  } catch (error) {
+    console.log('❌ [PublicDocument] Failed to download document:', error.message);
+    res.status(500).json({ emoji: '❌', error: error.message });
+  }
+};
