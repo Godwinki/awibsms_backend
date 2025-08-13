@@ -1,6 +1,7 @@
 // controllers/publicDocumentController.js
 const db = require('../models');
 const PublicDocument = db.PublicDocument;
+const DownloadLog = db.DownloadLog;
 const User = db.User;
 const fs = require('fs');
 const path = require('path');
@@ -402,6 +403,131 @@ exports.downloadDocument = async (req, res) => {
     }
   } catch (error) {
     console.log('❌ [PublicDocument] Failed to download document:', error.message);
+    res.status(500).json({ emoji: '❌', error: error.message });
+  }
+};
+
+// Log a document download with member details
+exports.logDownload = async (req, res) => {
+  console.log('📊 [DownloadLog] Logging document download');
+  try {
+    const {
+      memberName,
+      memberAccountNumber,
+      documentId,
+      downloadType,
+      phoneNumber,
+      loanAmount,
+      verified = false
+    } = req.body;
+
+    if (!memberName || !documentId || !downloadType) {
+      return res.status(400).json({ 
+        emoji: '❌', 
+        error: 'Member name, document ID, and download type are required' 
+      });
+    }
+
+    // Get document details
+    const document = await PublicDocument.findByPk(documentId);
+    if (!document) {
+      return res.status(404).json({ emoji: '⚠️', error: 'Document not found' });
+    }
+
+    // Get client IP and user agent
+    const ipAddress = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
+    const userAgent = req.get('User-Agent');
+
+    // Create download log entry
+    const downloadLog = await DownloadLog.create({
+      memberName,
+      memberAccountNumber,
+      documentId,
+      documentTitle: document.title,
+      documentCategory: document.category,
+      downloadType,
+      phoneNumber,
+      loanAmount: loanAmount ? parseFloat(loanAmount) : null,
+      ipAddress,
+      userAgent,
+      verified,
+      downloadedAt: new Date()
+    });
+
+    console.log(`✅ [DownloadLog] Download logged: ${downloadLog.id}`);
+    res.status(201).json({
+      emoji: '📊',
+      message: 'Download logged successfully',
+      logId: downloadLog.id
+    });
+
+  } catch (error) {
+    console.log('❌ [DownloadLog] Failed to log download:', error.message);
+    res.status(500).json({ emoji: '❌', error: error.message });
+  }
+};
+
+// Get download statistics (admin only)
+exports.getDownloadStats = async (req, res) => {
+  console.log('📈 [DownloadLog] Getting download statistics');
+  try {
+    const { startDate, endDate, documentType, verified } = req.query;
+    
+    const whereClause = {};
+    
+    if (startDate) {
+      whereClause.downloadedAt = { ...whereClause.downloadedAt, [db.Sequelize.Op.gte]: new Date(startDate) };
+    }
+    
+    if (endDate) {
+      whereClause.downloadedAt = { ...whereClause.downloadedAt, [db.Sequelize.Op.lte]: new Date(endDate) };
+    }
+    
+    if (documentType) {
+      whereClause.downloadType = documentType;
+    }
+    
+    if (verified !== undefined) {
+      whereClause.verified = verified === 'true';
+    }
+
+    const downloads = await DownloadLog.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: PublicDocument,
+          as: 'document',
+          attributes: ['title', 'category', 'originalName']
+        }
+      ],
+      order: [['downloadedAt', 'DESC']]
+    });
+
+    // Generate summary statistics
+    const stats = {
+      totalDownloads: downloads.length,
+      verifiedDownloads: downloads.filter(d => d.verified).length,
+      unverifiedDownloads: downloads.filter(d => !d.verified).length,
+      downloadsByType: {},
+      downloadsByDocument: {},
+      recentDownloads: downloads.slice(0, 10)
+    };
+
+    // Count by download type
+    downloads.forEach(download => {
+      stats.downloadsByType[download.downloadType] = (stats.downloadsByType[download.downloadType] || 0) + 1;
+      stats.downloadsByDocument[download.documentTitle] = (stats.downloadsByDocument[download.documentTitle] || 0) + 1;
+    });
+
+    console.log(`✅ [DownloadLog] Statistics generated: ${stats.totalDownloads} downloads`);
+    res.json({
+      emoji: '📈',
+      message: 'Download statistics retrieved successfully',
+      stats
+    });
+
+  } catch (error) {
+    console.log('❌ [DownloadLog] Failed to get statistics:', error.message);
     res.status(500).json({ emoji: '❌', error: error.message });
   }
 };

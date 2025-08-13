@@ -17,6 +17,9 @@ router.get('/download/:id', publicDocumentController.downloadDocument);
 router.get('/categories', publicDocumentController.getCategories);
 router.get('/document-types', publicDocumentController.getDocumentTypes);
 
+// Log a document download (public endpoint for tracking)
+router.post('/log-download', publicDocumentController.logDownload);
+
 // PROTECTED ROUTES (Authentication required - for CMS)
 
 // Get all documents for CMS management
@@ -42,6 +45,12 @@ router.put('/:id',
 router.delete('/:id', 
   auth.protect, 
   publicDocumentController.deleteDocument
+);
+
+// Get download statistics (admin only)
+router.get('/stats/downloads',
+  auth.protect,
+  publicDocumentController.getDownloadStats
 );
 
 // Error handling middleware for multer
