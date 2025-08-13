@@ -266,44 +266,6 @@ exports.deleteDocument = async (req, res) => {
   }
 };
 
-// Download a document (public endpoint, no auth required)
-exports.downloadDocument = async (req, res) => {
-  console.log(`📥 [PublicDocument] Download request for document: ${req.params.id}`);
-  try {
-    const document = await PublicDocument.findByPk(req.params.id);
-    if (!document) {
-      console.log(`⚠️ [PublicDocument] Document not found for download: ${req.params.id}`);
-      return res.status(404).json({ emoji: '⚠️', error: 'Document not found' });
-    }
-    
-    // Check if document is public and active
-    if (!document.isPublic || !document.isActive) {
-      console.log(`⚠️ [PublicDocument] Document not accessible: ${req.params.id}`);
-      return res.status(403).json({ emoji: '⚠️', error: 'Document not accessible' });
-    }
-    
-    // Check if document has expired
-    if (document.expiryDate && new Date() > document.expiryDate) {
-      console.log(`⚠️ [PublicDocument] Document expired: ${req.params.id}`);
-      return res.status(410).json({ emoji: '⚠️', error: 'Document has expired' });
-    }
-    
-    if (!fs.existsSync(document.filePath)) {
-      console.log(`⚠️ [PublicDocument] File not found on disk: ${document.filePath}`);
-      return res.status(404).json({ emoji: '⚠️', error: 'File not found on disk' });
-    }
-    
-    // Increment download count
-    await document.increment('downloadCount');
-    
-    console.log(`✅ [PublicDocument] Document downloaded: ${req.params.id}`);
-    res.download(document.filePath, document.originalName);
-  } catch (error) {
-    console.log('❌ [PublicDocument] Failed to download document:', error.message);
-    res.status(500).json({ emoji: '❌', error: error.message });
-  }
-};
-
 // Get document categories (for dropdowns)
 exports.getCategories = async (req, res) => {
   try {
