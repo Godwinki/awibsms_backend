@@ -4,6 +4,7 @@ const PublicDocument = db.PublicDocument;
 const User = db.User;
 const fs = require('fs');
 const path = require('path');
+const { supabase } = require('../lib/supabase');
 
 // Get all public documents (for website - no auth required)
 exports.getPublicDocuments = async (req, res) => {
@@ -142,6 +143,30 @@ exports.uploadDocument = async (req, res) => {
       const parsedExpiryDate = new Date(expiryDate);
       if (!isNaN(parsedExpiryDate.getTime())) {
         validExpiryDate = parsedExpiryDate;
+      }
+    }
+
+    // Check if we should also upload to Supabase (production) 
+    const useSupabase = supabase && (process.env.NODE_ENV === 'production' || process.env.USE_SUPABASE_STORAGE === 'true');
+    
+    if (useSupabase) {
+      // Upload to Supabase storage
+      console.log(`📦 [PublicDocument] Uploading to Supabase: ${req.file.filename}`);
+      
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const { data, error } = await supabase.storage
+        .from('public-documents')
+        .upload(req.file.filename, fileBuffer, {
+          contentType: req.file.mimetype,
+          cacheControl: '3600',
+          upsert: true
+        });
+      
+      if (error) {
+        console.log(`⚠️ [PublicDocument] Supabase upload error:`, error);
+        // Continue with local storage if Supabase fails
+      } else {
+        console.log(`✅ [PublicDocument] File uploaded to Supabase: ${req.file.filename}`);
       }
     }
 
@@ -329,28 +354,52 @@ exports.downloadDocument = async (req, res) => {
       return res.status(404).json({ emoji: '⚠️', error: 'Document not available' });
     }
     
-    // Check if file exists
-    const fs = require('fs');
-    const path = require('path');
-    
-    if (!fs.existsSync(document.filePath)) {
-      console.log(`⚠️ [PublicDocument] File not found on disk: ${document.filePath}`);
-      return res.status(404).json({ emoji: '⚠️', error: 'File not found' });
-    }
-    
     // Increment download count
     await document.increment('downloadCount');
     
     // Set appropriate headers
     res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="${document.originalName}"`);
-    res.setHeader('Content-Length', document.fileSize);
     
-    // Stream the file
-    const fileStream = fs.createReadStream(document.filePath);
-    fileStream.pipe(res);
+    // Check if we should use Supabase storage (production) or local storage (development)
+    const useSupabase = supabase && (process.env.NODE_ENV === 'production' || process.env.USE_SUPABASE_STORAGE === 'true');
     
-    console.log(`✅ [PublicDocument] File downloaded: ${document.originalName}`);
+    if (useSupabase) {
+      // Use Supabase storage
+      console.log(`📦 [PublicDocument] Downloading from Supabase: ${document.fileName}`);
+      
+      const { data, error } = await supabase.storage
+        .from('public-documents')
+        .download(document.fileName);
+      
+      if (error) {
+        console.log(`⚠️ [PublicDocument] Supabase download error:`, error);
+        return res.status(404).json({ emoji: '⚠️', error: 'File not found in storage' });
+      }
+      
+      // Convert blob to buffer and stream
+      const buffer = Buffer.from(await data.arrayBuffer());
+      res.setHeader('Content-Length', buffer.length);
+      res.send(buffer);
+      
+      console.log(`✅ [PublicDocument] File downloaded from Supabase: ${document.originalName}`);
+    } else {
+      // Use local file system
+      console.log(`📁 [PublicDocument] Downloading from local storage: ${document.filePath}`);
+      
+      if (!fs.existsSync(document.filePath)) {
+        console.log(`⚠️ [PublicDocument] File not found on disk: ${document.filePath}`);
+        return res.status(404).json({ emoji: '⚠️', error: 'File not found' });
+      }
+      
+      res.setHeader('Content-Length', document.fileSize);
+      
+      // Stream the file
+      const fileStream = fs.createReadStream(document.filePath);
+      fileStream.pipe(res);
+      
+      console.log(`✅ [PublicDocument] File downloaded from local storage: ${document.originalName}`);
+    }
   } catch (error) {
     console.log('❌ [PublicDocument] Failed to download document:', error.message);
     res.status(500).json({ emoji: '❌', error: error.message });
