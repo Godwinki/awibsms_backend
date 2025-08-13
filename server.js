@@ -428,7 +428,8 @@ const initializeDatabase = async () => {
       { name: 'Members', model: 'Member' },
       { name: 'blogs', model: 'Blog' },
       { name: 'Announcements', model: 'Announcement' },
-      { name: 'PublicDocuments', model: 'PublicDocument' }
+      { name: 'PublicDocuments', model: 'PublicDocument' },
+      { name: 'download_logs', model: 'DownloadLog' }
     ];
 
     console.log('\n🔍 Verifying critical tables...'.cyan);

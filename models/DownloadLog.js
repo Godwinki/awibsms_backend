@@ -12,7 +12,7 @@ module.exports = (sequelize, DataTypes) => {
       comment: 'Account number if member was verified'
     },
     documentId: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER,
       allowNull: false,
       references: {
         model: 'PublicDocuments',
