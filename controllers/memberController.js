@@ -445,3 +445,111 @@ exports.deleteMember = async (req, res) => {
     res.status(500).json({ emoji: '❌', error: error.message });
   }
 };
+
+// Verify member by name and phone
+exports.verifyMember = async (req, res) => {
+  console.log('🔍 [Member] Verify member request received');
+  try {
+    const { fullName, phoneNumber } = req.body;
+    
+    if (!fullName || !phoneNumber) {
+      return res.status(400).json({ 
+        emoji: '❌', 
+        error: 'Full name and phone number are required' 
+      });
+    }
+    
+    // Clean phone number (remove spaces, dashes, etc.)
+    const cleanPhoneNumber = phoneNumber.replace(/[\s\-\(\)]/g, '');
+    
+    // Search for member by full name and phone number
+    const member = await Member.findOne({
+      where: {
+        fullName: {
+          [db.Sequelize.Op.iLike]: `%${fullName}%` // Case-insensitive partial match
+        },
+        mobile: {
+          [db.Sequelize.Op.like]: `%${cleanPhoneNumber}%` // Allow partial phone match
+        }
+      },
+      attributes: ['id', 'fullName', 'mobile', 'accountNumber', 'createdAt']
+    });
+    
+    if (member) {
+      console.log('✅ [Member] Member verified:', member.id);
+      res.json({ 
+        emoji: '✅', 
+        message: 'Member verified successfully',
+        verified: true,
+        member: {
+          id: member.id,
+          fullName: member.fullName,
+          mobile: member.mobile,
+          accountNumber: member.accountNumber,
+          memberSince: member.createdAt
+        }
+      });
+    } else {
+      console.log('❌ [Member] Member not found');
+      res.json({ 
+        emoji: '❌', 
+        message: 'Member not found. Please check your name and phone number.',
+        verified: false
+      });
+    }
+  } catch (error) {
+    console.log(`❌ [Member] Failed to verify member: ${error.message}`);
+    res.status(500).json({ emoji: '❌', error: error.message });
+  }
+};
+
+// Public endpoint to verify member by name only (for form access)
+exports.verifyMemberByName = async (req, res) => {
+  console.log('🔍 [Member] Public name verification request received');
+  try {
+    const { firstName, lastName } = req.body;
+    
+    if (!firstName || !lastName) {
+      return res.status(400).json({ 
+        emoji: '❌', 
+        error: 'First name and last name are required' 
+      });
+    }
+    
+    // Search for member by matching both first and last names in fullName field
+    const member = await Member.findOne({
+      where: {
+        fullName: {
+          [db.Sequelize.Op.and]: [
+            { [db.Sequelize.Op.iLike]: `%${firstName}%` }, // Case-insensitive partial match for first name
+            { [db.Sequelize.Op.iLike]: `%${lastName}%` }   // Case-insensitive partial match for last name
+          ]
+        }
+      },
+      attributes: ['id', 'fullName', 'accountNumber'] // Only return minimal info for security
+    });
+    
+    if (member) {
+      console.log('✅ [Member] Member name verified:', member.id);
+      res.json({ 
+        emoji: '✅', 
+        message: 'Member verified successfully',
+        verified: true,
+        member: {
+          fullName: member.fullName,
+          accountNumber: member.accountNumber
+        }
+      });
+    } else {
+      console.log('❌ [Member] Member name not found');
+      res.json({ 
+        emoji: '❌', 
+        message: 'Member not found. Please check your first and last name spelling.',
+        verified: false
+      });
+    }
+  } catch (error) {
+    console.log(`❌ [Member] Failed to verify member name: ${error.message}`);
+    res.status(500).json({ emoji: '❌', error: error.message });
+  }
+};

@@ -10,6 +10,12 @@ const { apiLimiter } = require('../middleware/rateLimiter');
 // Get next available account number
 router.get('/next-account-number', protect, apiLimiter, memberController.getNextAccountNumber);
 
+// Public member verification endpoints (no auth required for form access)
+router.post('/verify-name', apiLimiter, memberController.verifyMemberByName);
+
+// Protected member verification (requires auth)
+router.post('/verify', apiLimiter, memberController.verifyMember);
+
 // CRUD routes
 router.post('/', protect, apiLimiter, memberValidationRules, validateMember, memberController.createMember);
 router.get('/', protect, apiLimiter, memberController.getMembers);
