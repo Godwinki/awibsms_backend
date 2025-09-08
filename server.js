@@ -433,8 +433,10 @@ const startServer = async () => {
     try {
       const emailService = require('./core/services/emailService');
       await emailService.init();
+      console.log('📧 Email service initialization completed');
     } catch (emailError) {
-      console.warn('⚠️ Email service initialization failed:', emailError.message);
+      console.warn('⚠️ Email service initialization error:', emailError.message);
+      console.log('🔔 Application will continue without email functionality');
     }
     
     // Initialize SMS service
