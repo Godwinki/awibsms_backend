@@ -95,13 +95,13 @@ const sendOTPByEmail = async (user, otp) => {
       const smtpConfigs = [
         {
           name: 'Gmail SMTP (Port 587)',
-          config: {
+          transporter: nodemailer.createTransport({
             host: process.env.EMAIL_HOST,
             port: 587,
             secure: false,
-            connectionTimeout: 60000,
-            socketTimeout: 60000,
-            greetingTimeout: 30000,
+            connectionTimeout: 8000, // Reduced timeout
+            socketTimeout: 8000, // Reduced timeout
+            greetingTimeout: 8000, // Reduced timeout
             debug: process.env.NODE_ENV !== 'production',
             pool: false,
             auth: {
@@ -111,7 +111,7 @@ const sendOTPByEmail = async (user, otp) => {
             tls: {
               rejectUnauthorized: false
             }
-          }
+          }),
         },
         {
           name: 'Gmail SMTP (Port 465)',
@@ -343,28 +343,35 @@ const generateAndSendOTP = async (user) => {
     //   return true;
     // }
     
-    // Send to both email and SMS with individual error handling
+    // Send SMS first (fast), then email in background
     let emailSuccess = false;
     let smsSuccess = false;
     let emailError = null;
     let smsError = null;
     
-    // Try email
-    try {
-      emailSuccess = await sendOTPByEmail(user, otp);
-    } catch (error) {
-      emailError = error;
-      console.error('📧 Email OTP failed:', error.message);
-    }
-    
-    // Try SMS
+    // Try SMS first (it's working and fast)
     try {
       if (user.phoneNumber) {
+        console.log('📱 Sending SMS first...');
         smsSuccess = await sendOTPBySMS(user, otp);
       }
     } catch (error) {
       smsError = error;
       console.error('📱 SMS OTP failed:', error.message);
+    }
+    
+    // Try email with shorter timeout to prevent blocking
+    try {
+      console.log('📧 Attempting email with reduced timeout...');
+      emailSuccess = await Promise.race([
+        sendOTPByEmail(user, otp),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Email timeout after 10 seconds')), 10000)
+        )
+      ]);
+    } catch (error) {
+      emailError = error;
+      console.error('📧 Email OTP failed (timeout or error):', error.message);
     }
     
     // Log results
