@@ -331,14 +331,17 @@ const generateAndSendOTP = async (user) => {
       NODE_ENV: process.env.NODE_ENV,
       isProduction: process.env.NODE_ENV === 'production',
       hasEmailConfig: !!(process.env.EMAIL_HOST && process.env.EMAIL_USER),
-      hasSmsConfig: !!(process.env.SMS_API_KEY || process.env.KILAKONA_API_KEY)
+      hasSmsConfig: !!(process.env.api_key && process.env.api_secret),
+      smsApiKey: process.env.api_key ? 'SET' : 'NOT SET',
+      smsApiSecret: process.env.api_secret ? 'SET' : 'NOT SET',
+      smsServiceConfigured: smsService.isConfigured()
     });
     
-    // In production, if both services are failing, allow temporary bypass
-    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_OTP_BYPASS === 'true') {
-      console.log('⚠️ PRODUCTION BYPASS: OTP sending disabled, allowing login without OTP');
-      return true;
-    }
+    // Remove bypass - we need to fix the actual issues
+    // if (process.env.NODE_ENV === 'production' && process.env.ALLOW_OTP_BYPASS === 'true') {
+    //   console.log('⚠️ PRODUCTION BYPASS: OTP sending disabled, allowing login without OTP');
+    //   return true;
+    // }
     
     // Send to both email and SMS with individual error handling
     let emailSuccess = false;
