@@ -1,0 +1,34 @@
+// routes/memberRoutes.js
+const express = require('express');
+const router = express.Router();
+const memberController = require('../controllers/memberController');
+const paymentController = require('../../payments/controllers/paymentController');
+const accountController = require('../../accounting/controllers/accountController');
+const { memberValidationRules, validateMember } = require('../middleware/memberMiddleware');
+const { protect, restrictTo } = require('../../auth/middleware/authMiddleware');
+const { apiLimiter } = require('../../../core/middleware/rateLimiter');
+
+// Get next available account number
+router.get('/next-account-number', protect, apiLimiter, memberController.getNextAccountNumber);
+
+// Public member verification endpoints (no auth required for form access)
+router.post('/verify-name', apiLimiter, memberController.verifyMemberByName);
+
+// Protected member verification (requires auth)
+router.post('/verify', apiLimiter, memberController.verifyMember);
+
+// CRUD routes
+router.post('/', protect, apiLimiter, memberValidationRules, validateMember, memberController.createMember);
+router.get('/', protect, apiLimiter, memberController.getMembers);
+router.get('/:id', protect, apiLimiter, memberController.getMemberById);
+router.put('/:id', protect, apiLimiter, memberValidationRules, validateMember, memberController.updateMember);
+router.delete('/:id', protect, restrictTo('admin', 'manager'), apiLimiter, memberController.deleteMember);
+
+// Member accounts and payments
+router.post('/:id/initial-payment', protect, apiLimiter, paymentController.processInitialPayment);
+router.get('/:id/accounts', protect, apiLimiter, accountController.getMemberAccounts);
+router.post('/:id/accounts', protect, restrictTo('admin', 'manager', 'cashier'), apiLimiter, accountController.createMemberAccount);
+router.get('/:id/accounts/:accountId', protect, apiLimiter, accountController.getAccountDetails);
+router.post('/:id/accounts/:accountId/transactions', protect, restrictTo('admin', 'manager', 'cashier'), apiLimiter, accountController.processTransaction);
+
+module.exports = router;

@@ -8,24 +8,12 @@ const { Sequelize } = require('sequelize');
 const colors = require('colors');
 require('dotenv').config();
 const cors = require('cors');
-const { apiLimiter } = require('./middleware/rateLimiter');
-const userRoutes = require('./routes/userRoutes');
-const config = require('./config/config.json');
-const activityRoutes = require('./routes/activityRoutes');
-const budgetRoutes = require('./routes/budgetRoutes');
-const departmentRoutes = require('./routes/departmentRoutes');
-const budgetCategoryRoutes = require('./routes/budgetCategoryRoutes');
-const expenseRoutes = require('./routes/expenseRoutes');
-const leaveRoutes = require('./routes/leaveRoutes');
-const memberRoutes = require('./routes/memberRoutes');
-const notificationRoutes = require('./routes/notificationRoutes');
-const documentRoutes = require('./routes/documentRoutes');
-const publicDocumentRoutes = require('./routes/publicDocumentRoutes');
-const announcementRoutes = require('./routes/announcementRoutes');
-const blogRoutes = require('./routes/blogRoutes');
-const accountRoutes = require('./routes/accountRoutes');
+const { apiLimiter } = require('./core/middleware/rateLimiter');
 
+// NEW MODULAR API
+const apiV1 = require('./api/v1');
 
+const config = require('./core/config/config.json');
 const fs = require('fs');
 const path = require('path');
 const cookieParser = require('cookie-parser');
@@ -59,81 +47,91 @@ const ensureUploadsDirectory = () => {
   }
 };
 
-// Initialize Express app
-const app = express();
+// Initialize uploads directory
 ensureUploadsDirectory();
 
-// Custom Banner
-const displayBanner = () => {
-  console.log('\n');
-  console.log('⚡️'.yellow, '='.repeat(50).cyan);
-  console.log(`
-     /\\\\\\\\\\\\\\\\\\     /\\\\\\\\\\\\\\\\\\     /\\\\\\     /\\\\\\  /\\\\\\\\\\\\\\\\\\     /\\\\\\\\\\\\\\\\\\     /\\\\\\\\\\\\\\\\\\     
-    /\\\\\\//////     /\\\\\\//////     \\/\\\\\\    /\\\\\\  /\\\\\\//////     /\\\\\\//////     /\\\\\\//////      
+const app = express();
+const PORT = process.env.PORT || 5001;
 
-  `.blue);
-  console.log('🏦', 'T Management System v1.0.0'.yellow.bold);
-  console.log('📍', ' Server Status:'.cyan, 'Initializing...'.yellow);
-  console.log('⚡️'.yellow, '='.repeat(50).cyan);
-  console.log('\n');
-};
+// Initialize Supabase for file storage
+const { createClient } = require('@supabase/supabase-js');
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Replace existing console.log banner with:
-displayBanner();
-
-// Database connection setup
-console.log('\n🔄 Setting up database connection...'.yellow);
-
-// Log the DATABASE_URL if available (without exposing credentials)
-if (process.env.DATABASE_URL) {
-  const sanitizedUrl = process.env.DATABASE_URL.replace(/(postgresql:\/\/[^:]+:)[^@]+(@.+)/, '$1****$2');
-  console.log(`🔄 DATABASE_URL is set: ${sanitizedUrl}`.yellow);
+let supabase = null;
+if (supabaseUrl && supabaseServiceKey) {
+  try {
+    supabase = createClient(supabaseUrl, supabaseServiceKey);
+    console.log('✅ Supabase client initialized for storage'.green);
+  } catch (error) {
+    console.log('⚠️ Failed to initialize Supabase client:', error.message);
+  }
 } else {
-  console.log('⚠️ No DATABASE_URL found, will use local config'.yellow);
+  console.log('⚠️ Supabase credentials not found - file storage disabled'.yellow);
 }
 
-// Import database models
+// Make supabase available globally
+global.supabase = supabase;
+
+// Database initialization
 const db = require('./models');
 const sequelize = db.sequelize;
 
-// Function to initialize database including SMS tables
+// Function to initialize database
 const initDatabase = async () => {
   try {
     // Test the connection
     await sequelize.authenticate();
     console.log('✅ Database connection established successfully'.green);
     
-    // Create Announcements table if it doesn't exist
+    // Sync database with alter option for development
+    console.log('🔄 Synchronizing database schema...'.yellow);
+    
     try {
-      const [results] = await sequelize.query(
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'Announcements'"
-      );
+      // Get all models for debugging
+      const models = Object.keys(sequelize.models);
+      console.log(`📋 Found ${models.length} models:`, models);
       
-      if (results.length === 0) {
-        console.log('🔄 Creating Announcements table...'.yellow);
-        await db.Announcement.sync({ force: false });
-        console.log('✅ Announcements table created'.green);
-      }
-    } catch (error) {
-      console.log('⚠️ Could not create Announcements table:', error.message);
-    }
-
-    // Create Blogs table if it doesn't exist
-    try {
-      const [blogResults] = await sequelize.query(
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'blogs'"
-      );
+      // Check if we should force sync (create all tables)
+      // Force sync can be enabled by setting FORCE_DB_SYNC=true in .env
+      // or by setting NODE_ENV=initial-deployment
+      const shouldForceSync = process.env.FORCE_DB_SYNC === 'true' || process.env.NODE_ENV === 'initial-deployment';
       
-      if (blogResults.length === 0) {
-        console.log('🔄 Creating Blogs table...'.yellow);
-        await db.Blog.sync({ force: false });
-        console.log('✅ Blogs table created'.green);
+      if (shouldForceSync) {
+        console.log('⚠️ FORCE SYNC enabled - all tables will be dropped and recreated'.yellow.bold);
+        await sequelize.sync({ force: true });
+        console.log('✅ Database tables forcefully recreated'.green.bold);
       } else {
-        console.log('✅ Blogs table already exists'.green);
+        // Use alter to update existing tables without dropping data
+        await sequelize.sync({ alter: true });
+        console.log('✅ Database schema synchronized with alter mode'.green);
       }
-    } catch (error) {
-      console.log('⚠️ Could not create Blogs table:', error.message);
+      
+    } catch (syncError) {
+      console.error('❌ Database sync error:', syncError.message);
+      throw syncError;
     }
+    
+    // Verify SmsMessage table structure
+    const smsMessageModel = sequelize.models.SmsMessage;
+    if (smsMessageModel) {
+      console.log('📱 SmsMessage model found, checking table structure...'.blue);
+      try {
+        const tableDescription = await sequelize.getQueryInterface().describeTable('SmsMessages');
+        console.log('📋 SmsMessages table columns:', Object.keys(tableDescription));
+        if (tableDescription.messageLength) {
+          console.log('✅ messageLength column confirmed in database'.green);
+        } else {
+          console.log('❌ messageLength column missing from database table'.red);
+        }
+      } catch (descError) {
+        console.log('⚠️ Could not describe SmsMessages table:', descError.message);
+      }
+    }
+    
+    // Run seeders for roles and permissions if tables are empty
+    await runSeeders();
+    
   } catch (error) {
     console.error('❌ Database connection error:'.red, error.message);
     // Don't exit process on DB error in production - allow the server to start anyway
@@ -144,6 +142,60 @@ const initDatabase = async () => {
     }
   }
 };
+
+// Function to run seeders automatically
+const runSeeders = async () => {
+  try {
+    const { User, Role, Permission, RolePermission, Shortcut } = require('./models');
+    
+    // Check if roles exist first
+    const roleCount = await Role.count();
+    if (roleCount === 0) {
+      console.log('🌱 Seeding default roles and permissions...'.yellow);
+      
+      // Import and run the roles and permissions seeder
+      const rolesSeederData = require('./seeders/20250818-seed-roles-permissions');
+      await rolesSeederData.up(sequelize.getQueryInterface(), sequelize.constructor);
+      
+      console.log('✅ Default roles and permissions seeded'.green);
+      
+      // Run the permissions update seeder
+      const permissionsUpdateSeeder = require('./seeders/20250818-update-permissions-seed');
+      await permissionsUpdateSeeder.up(sequelize.getQueryInterface(), sequelize.constructor);
+      
+      console.log('✅ Additional permissions seeded'.green);
+      
+      // Run the member upload permission seeder
+      const uploadPermissionsSeeder = require('./seeders/20251001-add-upload-permissions-to-roles');
+      await uploadPermissionsSeeder.up(sequelize.getQueryInterface(), sequelize.constructor);
+      
+      console.log('✅ Member upload permissions assigned to roles'.green);
+    } else {
+      console.log('✅ Roles and permissions already exist'.green);
+    }
+
+    // Admin user creation is now handled by seedAdminUser.js utility after server starts
+    // This eliminates the duplicate creation attempt and potential errors
+    
+    // Check if shortcuts exist and seed them
+    const shortcutCount = await Shortcut.count();
+    if (shortcutCount === 0) {
+      console.log('🚀 Seeding default shortcuts...'.yellow);
+      
+      const { seedShortcuts } = require('./utils/shortcutSeeder');
+      await seedShortcuts();
+      
+      console.log('✅ Default shortcuts seeded'.green);
+    } else {
+      console.log('✅ Shortcuts already exist'.green);
+    }
+
+  } catch (error) {
+    console.error('❌ Error running seeders:', error.message);
+    console.error('Stack:', error.stack);
+  }
+};
+
 // Middleware
 app.use(helmet()); // Security headers
 
@@ -159,7 +211,18 @@ app.use((req, res, next) => {
 });
 
 // Add static file serving for uploads
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads',
+   express.static(path.join(__dirname, 'uploads')));
+
+// Add static file serving for frontend assets if needed
+app.use('/sounds', express.static(path.join(__dirname, '../frontend/public/sounds'), {
+  setHeaders: (res, path) => {
+    if (path.endsWith('.wav') || path.endsWith('.mp3')) {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.setHeader('Content-Type', 'audio/wav');
+    }
+  }
+}));
 
 // Place this BEFORE any middleware that uses this setting
 app.set('trust proxy', process.env.NODE_ENV === 'production' ? 1 : 0); // Trust first proxy in production
@@ -262,8 +325,8 @@ app.get('/ping', (req, res) => {
   res.status(200).send('pong');
 });
 
-// Add diagnostic routes BEFORE authentication middleware
-const diagnosticRoutes = require('./routes/diagnosticRoutes');
+// Add diagnostic routes BEFORE authentication middleware (keep this useful for debugging)
+const diagnosticRoutes = require('./api/diagnostic');
 app.use('/api/diagnostic', diagnosticRoutes);
 
 // Session management
@@ -278,289 +341,152 @@ const sessionConfig = {
           }
         }
       : {
-          connectionString: `postgres://${config.development.username}:${config.development.password}@${config.development.host}:${config.development.port || 5432}/${config.development.database}`
-        },
-    createTableIfMissing: true,
-    pruneSessionInterval: 60
+          host: config.production.host || config.development.host,
+          port: config.production.port || config.development.port,
+          database: config.production.database || config.development.database,
+          user: config.production.username || config.development.username,
+          password: config.production.password || config.development.password,
+          ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+        }
   }),
-  secret: process.env.SESSION_SECRET,
+  secret: process.env.SESSION_SECRET || 'your-session-secret-key',
   resave: false,
   saveUninitialized: false,
-  cookie: { 
+  cookie: {
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 30 * 60 * 1000,
     httpOnly: true,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    domain: process.env.COOKIE_DOMAIN || undefined
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 };
 
 app.use(session(sessionConfig));
 
-// Routes with proper prefixes
-app.use('/api/activities', activityRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/budgets', budgetRoutes);
-app.use('/api/departments', departmentRoutes);
-app.use('/api/budget-categories', budgetCategoryRoutes);
-app.use('/api/expenses', expenseRoutes);
-app.use('/api/leaves', leaveRoutes); 
-app.use('/api/notifications', notificationRoutes); 
+// Apply session activity tracking middleware to all authenticated routes
+const { updateSessionActivity } = require('./modules/auth/middleware/sessionMiddleware');
 
-// Register settings routes at top-level
-const settingRoutes = require('./routes/settingRoutes');
-app.use('/api/settings', settingRoutes);
+// =====================================
+// MODULAR API (v1) - MAIN API ROUTES
+// =====================================
+app.use('/api/v1', updateSessionActivity);
+app.use('/api/v1', apiV1);
 
-app.use('/api/members', memberRoutes);
-
-// Member bulk upload routes
-const memberUploadRoutes = require('./routes/memberUploadRoutes');
-app.use('/api/member-uploads', memberUploadRoutes);
-
-app.use('/api/documents', documentRoutes);
-app.use('/api/public-documents', publicDocumentRoutes);
-app.use('/api/announcements', announcementRoutes);
-app.use('/api/blogs', blogRoutes);
-app.use('/api/accounts', accountRoutes);
-
-// Import account type controller directly
-const accountController = require('./controllers/accountController');
-const { protect } = require('./middleware/authMiddleware');
-
-// Add direct routes for account types to match frontend expectations
-app.get('/api/account-types', protect, accountController.getAccountTypes);
-app.get('/api/account-types/:id', protect, accountController.getAccountTypeById);
-
-
-// Apply API rate limiting to routes except special cases
-// The readOnlyLimiter is applied directly in the route files for special endpoints
-app.use('/api/users', apiLimiter);
-app.use('/api/budgets', apiLimiter);
-app.use('/api/activities', apiLimiter);
-app.use('/api/expenses', apiLimiter);
+// Apply API rate limiting to v1 routes
+app.use('/api/v1', apiLimiter);
 
 // Add a catch-all route for debugging
 app.use('*', (req, res) => {
-  console.log('404 - Route not found:', req.originalUrl);
+  console.log(`Unmatched route: ${req.method} ${req.originalUrl}`);
   res.status(404).json({
-    status: 'error',
-    message: `Route ${req.originalUrl} not found`
+    success: false,
+    message: 'Route not found',
+    availableRoutes: {
+      health: 'GET /',
+      ping: 'GET /ping',
+      api: 'GET /api/v1/health',
+      modules: [
+        '/api/v1/auth',
+        '/api/v1/members',
+        '/api/v1/budget',
+        '/api/v1/accounting',
+        '/api/v1/expenses',
+        '/api/v1/organization',
+        '/api/v1/content',
+        '/api/v1/notifications',
+        '/api/v1/system',
+        '/api/v1/leave',
+        '/api/v1/payments',
+        '/api/v1/documents',
+        '/api/v1/communications'
+      ],
+      backwardCompatibility: [
+        'POST /api/v1/users/login',
+        'GET /api/v1/blogs',
+        'GET /api/v1/announcements'
+      ]
+    }
   });
 });
 
-// Update the initializeDatabase function
-const initializeDatabase = async () => {
-  try {
-    console.log('\n🔄 Initializing database...'.yellow);
-    
-    // Test database connection with retry logic
-    let retries = 5;
-    let lastError;
-    
-    while (retries) {
-      try {
-        await sequelize.authenticate();
-        console.log('✅ Database connection established successfully'.green);
-        break;
-      } catch (error) {
-        lastError = error;
-        retries -= 1;
-        if (retries === 0) {
-          console.error('❌ All connection attempts failed'.red);
-          throw lastError;
-        }
-        console.log(`⚠️ Database connection attempt failed. Retrying... (${retries} attempts left)`.yellow);
-        console.log(`Error details: ${error.message}`.yellow);
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-    }
-    
-    // Explicitly require critical models to ensure they're loaded
-    try {
-      require('./models/Member');
-      require('./models/Blog');
-      require('./models/Announcement');
-      console.log('✅ Critical models loaded successfully'.green);
-    } catch (error) {
-      console.error('❌ Error loading critical models:'.red, error.message);
-    }
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Global error handler:', err);
+  
+  // Don't leak error details in production
+  const isDev = process.env.NODE_ENV !== 'production';
+  
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal server error',
+    ...(isDev && { stack: err.stack, details: err })
+  });
+});
 
-    // Display all loaded models
-    console.log('\n📋 Loaded Models:'.cyan);
-    Object.keys(db).forEach(modelName => {
-      if (modelName !== 'sequelize' && modelName !== 'Sequelize') {
-        console.log(`  📄 ${modelName}`.blue);
-      }
-    });
-    
-    // Check if this is a fresh database by looking for Users table
-    let isFreshDatabase = false;
-    try {
-      const usersTableExists = await sequelize.query(
-        `SELECT EXISTS (
-          SELECT 1 FROM information_schema.tables 
-          WHERE table_name = 'Users'
-        )`,
-        { type: sequelize.QueryTypes.SELECT, plain: true }
-      );
-      isFreshDatabase = !usersTableExists.exists;
-    } catch (error) {
-      // If we can't check, assume it's a fresh database
-      isFreshDatabase = true;
-    }
-    
-    if (isFreshDatabase) {
-      console.log('🆕 Fresh database detected - enabling synchronization to create tables'.green);
-      try {
-        await sequelize.sync({ alter: false });
-        console.log('✅ Database tables created successfully'.green);
-      } catch (syncError) {
-        console.error('❌ Error creating database tables:'.red, syncError.message);
-        throw syncError;
-      }
-    } else {
-      console.log('ℹ️ Existing database detected - skipping synchronization to prevent conflicts'.yellow);
-      console.log('✅ Using existing database schema'.green);
-    }
-
-    // Verify critical tables exist and create if missing
-    const criticalTables = [
-      { name: 'Members', model: 'Member' },
-      { name: 'blogs', model: 'Blog' },
-      { name: 'Announcements', model: 'Announcement' },
-      { name: 'PublicDocuments', model: 'PublicDocument' },
-      { name: 'download_logs', model: 'DownloadLog' }
-    ];
-
-    console.log('\n🔍 Verifying critical tables...'.cyan);
-    for (const table of criticalTables) {
-      try {
-        const tableExists = await sequelize.query(
-          `SELECT EXISTS (
-            SELECT 1 FROM information_schema.tables 
-            WHERE table_name = '${table.name}'
-          )`,
-          { type: sequelize.QueryTypes.SELECT, plain: true }
-        );
-        
-        if (tableExists && tableExists.exists) {
-          console.log(`✅ ${table.name} table exists`.green);
-          
-          // For blogs table, check if new Supabase fields exist and add them if not
-          if (table.name === 'blogs') {
-            try {
-              const columnsExist = await sequelize.query(
-                `SELECT column_name FROM information_schema.columns 
-                 WHERE table_name = 'blogs' AND column_name IN ('featuredImageUrl', 'featuredImagePath', 'featuredImageOriginalName', 'featuredImageSize')`,
-                { type: sequelize.QueryTypes.SELECT }
-              );
-              
-              if (columnsExist.length < 4) {
-                console.log('📝 Adding new Supabase fields to blogs table...'.yellow);
-                await sequelize.query(`
-                  ALTER TABLE "blogs" 
-                  ADD COLUMN IF NOT EXISTS "featuredImageUrl" VARCHAR(500),
-                  ADD COLUMN IF NOT EXISTS "featuredImagePath" VARCHAR(300),
-                  ADD COLUMN IF NOT EXISTS "featuredImageOriginalName" VARCHAR(255),
-                  ADD COLUMN IF NOT EXISTS "featuredImageSize" INTEGER;
-                `);
-                console.log('✅ Supabase fields added to blogs table'.green);
-              }
-            } catch (alterError) {
-              console.log('⚠️ Could not add Supabase fields to blogs table:', alterError.message);
-            }
-          }
-        } else {
-          console.log(`⚠️ ${table.name} table missing - creating...`.yellow);
-          
-          if (db[table.model]) {
-            await db[table.model].sync({ force: false });
-            console.log(`✅ ${table.name} table created successfully`.green);
-          } else {
-            console.log(`❌ Model ${table.model} not found in db object`.red);
-          }
-        }
-      } catch (error) {
-        console.error(`❌ Error verifying ${table.name} table:`.red, error.message);
-      }
-    }
-    
-    // Check if admin user exists and create if not
-    console.log('\n👤 Verifying admin user...'.cyan);
-    try {
-      const AdminSeeder = require('./seeders/20240328-admin-user');
-      const [results] = await sequelize.query('SELECT * FROM "Users" WHERE role = \'admin\' LIMIT 1');
-      
-      if (results.length === 0) {
-        console.log('👤 No admin user found, creating one...'.yellow);
-        await AdminSeeder.up(sequelize.getQueryInterface(), Sequelize);
-        console.log('👤 Admin user created successfully'.green);
-      } else {
-        console.log('👤 Admin user already exists'.green);
-      }
-    } catch (error) {
-      console.error('❌ Error verifying admin user:'.red, error.message);
-    }
-    
-    console.log('✅ Database synchronized successfully'.green);
-
-  } catch (error) {
-    console.error('❌ Database initialization error:'.red);
-    console.error('⚠️  Details:', error.message);
-    console.error('Stack:', error.stack);
-    process.exit(1);
-  }
-};
-
-// Update start server function
-const PORT = process.env.PORT || 5000;
-
+// Initialize database and start server
 const startServer = async () => {
   try {
-    await initializeDatabase();
+    await initDatabase();
     
-    // Railway expects the server to listen on PORT
-    const server = app.listen(PORT, () => {
-      console.log('🚀'.green, `Server running on port ${PORT}`.cyan);
-      console.log('📍'.yellow, `Environment: ${process.env.NODE_ENV}`.cyan);
-      console.log('🔗'.yellow, `Health check at: /ping`.cyan);
-      console.log('⚡️'.yellow, '='.repeat(50).cyan);
-    });
-
-    // Critical for Railway - specify longer timeouts to prevent premature connection termination
-    server.keepAliveTimeout = 65000; // Ensure longer than ALB's idle timeout (usually 60s)
-    server.headersTimeout = 66000; // Slightly more than keepAliveTimeout
+    // Initialize services
+    console.log('🔧 Initializing services...'.yellow);
     
-    // Add proper shutdown handling
-    const gracefulShutdown = (signal) => {
-      console.log(`🛑 Received ${signal || 'shutdown'} signal, closing server...`.yellow);
-      server.close(() => {
-        console.log('✅ Server closed successfully'.green);
-        process.exit(0);
-      });
-      
-      // Force close if it takes too long
-      setTimeout(() => {
-        console.error('⚠️ Could not close connections in time, forcefully shutting down'.red);
-        process.exit(1);
-      }, 30000); // Give it 30 seconds to close connections
-    };
+    // Initialize email service
+    try {
+      const emailService = require('./core/services/emailService');
+      await emailService.init();
+    } catch (emailError) {
+      console.warn('⚠️ Email service initialization failed:', emailError.message);
+    }
     
-    // Listen for termination signals
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
-    // Handle server errors
-    server.on('error', (error) => {
-      console.error('❌ Server error:'.red, error.message);
-      
-      // Don't exit on connection errors in production
-      if (process.env.NODE_ENV === 'production' && 
-          (error.code === 'ECONNRESET' || error.code === 'EPIPE')) {
-        console.log('⚠️ Connection error in production - not exiting'.yellow);
+    // Initialize SMS service
+    try {
+      const smsService = require('./core/services/simpleSmsService');
+      if (smsService.isConfigured()) {
+        console.log('✅ SMS service configured and ready'.green);
       } else {
-        process.exit(1);
+        console.log('📱 SMS service not configured (API credentials missing)'.yellow);
       }
+    } catch (smsError) {
+      console.warn('⚠️ SMS service initialization failed:', smsError.message);
+    }
+    
+    app.listen(PORT, async () => {
+      console.log(`🚀 Server running on port ${PORT}`.green.bold);
+      console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`.blue);
+      console.log(`🌐 API Base URL: http://localhost:${PORT}/api/v1`.magenta);
+      console.log('========================================================'.rainbow);
+      console.log('📦 Active Modules:'.yellow.bold);
+      console.log('   • Auth'.green);
+      console.log('   • Members'.green);
+      console.log('   • Budget'.green);
+      console.log('   • Accounting'.green);
+      console.log('   • Expenses'.green);
+      console.log('   • Organization'.green);
+      console.log('   • Content'.green);
+      console.log('   • Notifications'.green);
+      console.log('   • System'.green);
+      console.log('   • Leave'.green);
+      console.log('   • Payments'.green);
+      console.log('   • Documents'.green);
+      console.log('   • Communications'.green);
+      console.log('   • Company Settings'.green);
+      console.log('   • Branches Management'.green);
+      console.log('============================================================'.rainbow);
+      
+      // Session cleanup scheduler
+      const { cleanupExpiredSessions, markInactiveSessions } = require('./modules/auth/middleware/sessionMiddleware');
+      
+      // Run session cleanup every hour
+      setInterval(async () => {
+        await markInactiveSessions();
+        await cleanupExpiredSessions();
+      }, 60 * 60 * 1000); // 1 hour
+      
+      // Run initial cleanup
+      console.log('🧹 Starting session cleanup scheduler...'.cyan);
+      await markInactiveSessions();
+      await cleanupExpiredSessions();
+      
+      
     });
   } catch (error) {
     console.error('❌ Failed to start server:'.red, error);
@@ -569,19 +495,3 @@ const startServer = async () => {
 };
 
 startServer();
-
-// Error handling
-app.use((err, req, res, next) => {
-  console.error('❌ Error:'.red, err.stack);
-  res.status(500).json({
-    status: 'error',
-    message: '🔥 Internal server error'
-  });
-});
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  console.log('❌ UNHANDLED REJECTION! Shutting down...'.red.bold);
-  console.error('Error:', err);
-  process.exit(1);
-});

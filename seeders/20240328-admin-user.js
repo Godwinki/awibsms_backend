@@ -10,31 +10,48 @@ module.exports = {
     
     await queryInterface.bulkInsert('Users', [{
       id: uuidv4(),
-      firstName: 'System',
-      lastName: 'Administrator',
-      email: 'admin@awibsys.com',
+      firstName: 'Godwin',
+      lastName: 'Kiwovele',
+      email: 'godwinkiwovel@gmail.com',
       password: hashedPassword,
-      phoneNumber: '+255123456789',
+      phoneNumber: '+255744958059',
       department: 'Administration',
-      role: 'admin',
+      role: 'super_admin',
       status: 'active',
       failedLoginAttempts: 0,
       lastPasswordChangedAt: now,
       passwordExpiresAt: threeMonthsFromNow,
       lockoutUntil: null,
-      passwordHistory: '{}',
-      securityQuestions: '{}',
-      preferences: '{}',
+      passwordHistory: [],
+      securityQuestions: [],
+      preferences: {},
       profilePicture: null,
       lastLogin: null,
       passwordResetToken: null,
       passwordResetExpires: null,
+      forcePasswordChange: true, // Force password change on first login
+      twoFactorEnabled: true, // Enable 2FA by default for security
+      twoFactorMethod: 'email',
+      twoFactorSecret: null,
+      twoFactorBackupCodes: [],
+      lastOtpTime: null,
+      otpAttempts: 0,
+      // Account unlock fields
+      unlockToken: null,
+      unlockTokenExpires: null,
+      unlockOtp: null,
+      unlockOtpExpires: null,
+      unlockOtpAttempts: 0,
+      lockReason: null,
+      lockedBy: 'system',
+      unlockRequested: false,
+      unlockRequestedAt: null,
       createdAt: now,
       updatedAt: now
     }], {});
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.bulkDelete('Users', { email: 'admin@awibsys.com' }, {});
+    await queryInterface.bulkDelete('Users', { email: 'godwinkiwovel@gmail.com' }, {});
   }
 }; 
