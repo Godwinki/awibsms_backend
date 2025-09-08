@@ -75,6 +75,13 @@ const generateAndStoreOTP = async (user) => {
  */
 const sendOTPByEmail = async (user, otp) => {
   try {
+    console.log('🔍 DEBUG - Email config check:');
+    console.log('  EMAIL_HOST:', process.env.EMAIL_HOST ? 'SET' : 'NOT SET');
+    console.log('  EMAIL_USER:', process.env.EMAIL_USER ? 'SET' : 'NOT SET');
+    console.log('  EMAIL_PASSWORD:', process.env.EMAIL_PASSWORD ? 'SET' : 'NOT SET');
+    console.log('  EMAIL_PORT:', process.env.EMAIL_PORT || 'DEFAULT');
+    console.log('  EMAIL_SECURE:', process.env.EMAIL_SECURE || 'DEFAULT');
+    
     // Use nodemailer directly for better control
     const nodemailer = require('nodemailer');
     
@@ -82,14 +89,21 @@ const sendOTPByEmail = async (user, otp) => {
     let transporter;
     
     if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
+      console.log('🔍 DEBUG - Creating SMTP transporter with config');
       // Use configured SMTP (Gmail with app password)
       transporter = nodemailer.createTransport({
         host: process.env.EMAIL_HOST,
         port: parseInt(process.env.EMAIL_PORT) || 587,
         secure: process.env.EMAIL_SECURE === 'true',
+        connectionTimeout: 15000,
+        socketTimeout: 15000,
+        debug: process.env.NODE_ENV !== 'production',
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASSWORD // App password from Gmail
+        },
+        tls: {
+          rejectUnauthorized: false
         }
       });
       console.log('📧 Using configured SMTP server:', process.env.EMAIL_HOST);
@@ -162,9 +176,11 @@ const sendOTPByEmail = async (user, otp) => {
       html
     };
 
+    console.log('🔍 DEBUG - Attempting to send email...');
     const info = await transporter.sendMail(mailOptions);
     
     console.log('📧 Email sent successfully:', info.messageId);
+    console.log('🔍 DEBUG - Email info:', JSON.stringify(info, null, 2));
     
     // For development with ethereal, log the preview URL
     if (!process.env.EMAIL_HOST && process.env.NODE_ENV !== 'production') {
@@ -174,6 +190,13 @@ const sendOTPByEmail = async (user, otp) => {
     return true;
   } catch (error) {
     console.error('❌ Failed to send OTP email:', error);
+    console.error('🔍 DEBUG - Email error details:', {
+      message: error.message,
+      code: error.code,
+      command: error.command,
+      response: error.response,
+      responseCode: error.responseCode
+    });
     throw new Error('Failed to send authentication code');
   }
 };
@@ -186,11 +209,16 @@ const sendOTPByEmail = async (user, otp) => {
  */
 const sendOTPBySMS = async (user, otp) => {
   try {
+    console.log('🔍 DEBUG - SMS service check:');
+    console.log('  User phone number:', user.phoneNumber ? 'SET' : 'NOT SET');
+    console.log('  SMS service configured:', smsService.isConfigured() ? 'YES' : 'NO');
+    
     if (!user.phoneNumber) {
       console.log('📱 No phone number provided for SMS OTP');
       return false;
     }
 
+    console.log('🔍 DEBUG - Attempting to send SMS...');
     const success = await smsService.sendOTP(user.phoneNumber, otp, {
       firstName: user.firstName,
       lastName: user.lastName
@@ -205,6 +233,10 @@ const sendOTPBySMS = async (user, otp) => {
     return success;
   } catch (error) {
     console.error('❌ Error sending SMS OTP:', error);
+    console.error('🔍 DEBUG - SMS error details:', {
+      message: error.message,
+      stack: error.stack
+    });
     return false;
   }
 };
