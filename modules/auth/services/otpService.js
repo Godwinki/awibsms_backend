@@ -90,28 +90,77 @@ const sendOTPByEmail = async (user, otp) => {
     
     if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
       console.log('🔍 DEBUG - Creating SMTP transporter with config');
-      // Use configured SMTP (Gmail with app password)
-      transporter = nodemailer.createTransport({
-        host: process.env.EMAIL_HOST,
-        port: parseInt(process.env.EMAIL_PORT) || 587,
-        secure: process.env.EMAIL_SECURE === 'true',
-        connectionTimeout: 30000, // Increased timeout
-        socketTimeout: 30000, // Increased timeout
-        greetingTimeout: 30000, // Add greeting timeout
-        debug: process.env.NODE_ENV !== 'production',
-        pool: false, // Disable connection pooling
-        maxConnections: 1, // Limit connections
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASSWORD // App password from Gmail
+      
+      // Try multiple SMTP configurations for production reliability
+      const smtpConfigs = [
+        {
+          name: 'Gmail SMTP (Port 587)',
+          config: {
+            host: process.env.EMAIL_HOST,
+            port: 587,
+            secure: false,
+            connectionTimeout: 60000,
+            socketTimeout: 60000,
+            greetingTimeout: 30000,
+            debug: process.env.NODE_ENV !== 'production',
+            pool: false,
+            auth: {
+              user: process.env.EMAIL_USER,
+              pass: process.env.EMAIL_PASSWORD
+            },
+            tls: {
+              rejectUnauthorized: false
+            }
+          }
         },
-        tls: {
-          rejectUnauthorized: false,
-          ciphers: 'SSLv3'
+        {
+          name: 'Gmail SMTP (Port 465)',
+          config: {
+            host: process.env.EMAIL_HOST,
+            port: 465,
+            secure: true,
+            connectionTimeout: 60000,
+            socketTimeout: 60000,
+            greetingTimeout: 30000,
+            debug: process.env.NODE_ENV !== 'production',
+            pool: false,
+            auth: {
+              user: process.env.EMAIL_USER,
+              pass: process.env.EMAIL_PASSWORD
+            },
+            tls: {
+              rejectUnauthorized: false
+            }
+          }
         }
-      });
-      console.log('📧 Using configured SMTP server:', process.env.EMAIL_HOST);
-    } else {
+      ];
+      
+      // Try each configuration until one works
+      for (const smtpConfig of smtpConfigs) {
+        try {
+          console.log(`🔍 DEBUG - Trying ${smtpConfig.name}`);
+          transporter = nodemailer.createTransport(smtpConfig.config);
+          
+          // Test the connection
+          await transporter.verify();
+          console.log(`✅ SMTP connection verified: ${smtpConfig.name}`);
+          break;
+        } catch (verifyError) {
+          console.log(`❌ ${smtpConfig.name} failed:`, verifyError.message);
+          transporter = null;
+        }
+      }
+      
+      if (!transporter) {
+        console.log('⚠️ All SMTP configurations failed, falling back to development mode');
+      } else {
+        console.log('📧 Using configured SMTP server:', process.env.EMAIL_HOST);
+      }
+    }
+    
+    // If no transporter was created, fall back to test account
+    if (!transporter) {
+      console.log('🔍 DEBUG - Creating fallback test account');
       // For development without email config, create a test account
       const testAccount = await nodemailer.createTestAccount();
       
