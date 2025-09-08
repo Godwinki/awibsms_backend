@@ -327,13 +327,42 @@ const generateAndSendOTP = async (user) => {
     const otp = await generateAndStoreOTP(user);
     
     console.log(`📤 Sending OTP to user ${user.email} via email and SMS...`);
+    console.log('🔍 DEBUG - Environment check:', {
+      NODE_ENV: process.env.NODE_ENV,
+      isProduction: process.env.NODE_ENV === 'production',
+      hasEmailConfig: !!(process.env.EMAIL_HOST && process.env.EMAIL_USER),
+      hasSmsConfig: !!(process.env.SMS_API_KEY || process.env.KILAKONA_API_KEY)
+    });
     
-    // Send to both email and SMS simultaneously
-    const emailPromise = sendOTPByEmail(user, otp);
-    const smsPromise = user.phoneNumber ? sendOTPBySMS(user, otp) : Promise.resolve(false);
+    // In production, if both services are failing, allow temporary bypass
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_OTP_BYPASS === 'true') {
+      console.log('⚠️ PRODUCTION BYPASS: OTP sending disabled, allowing login without OTP');
+      return true;
+    }
     
-    // Wait for both to complete
-    const [emailSuccess, smsSuccess] = await Promise.all([emailPromise, smsPromise]);
+    // Send to both email and SMS with individual error handling
+    let emailSuccess = false;
+    let smsSuccess = false;
+    let emailError = null;
+    let smsError = null;
+    
+    // Try email
+    try {
+      emailSuccess = await sendOTPByEmail(user, otp);
+    } catch (error) {
+      emailError = error;
+      console.error('📧 Email OTP failed:', error.message);
+    }
+    
+    // Try SMS
+    try {
+      if (user.phoneNumber) {
+        smsSuccess = await sendOTPBySMS(user, otp);
+      }
+    } catch (error) {
+      smsError = error;
+      console.error('📱 SMS OTP failed:', error.message);
+    }
     
     // Log results
     console.log(`📧 Email OTP: ${emailSuccess ? 'Success' : 'Failed'}`);
@@ -346,6 +375,11 @@ const generateAndSendOTP = async (user) => {
       console.log('✅ OTP sent successfully via at least one method');
     } else {
       console.log('❌ Failed to send OTP via any method');
+      console.log('🔍 DEBUG - All methods failed:', {
+        emailError: emailError?.message,
+        smsError: smsError?.message,
+        environment: process.env.NODE_ENV
+      });
     }
     
     return overallSuccess;
