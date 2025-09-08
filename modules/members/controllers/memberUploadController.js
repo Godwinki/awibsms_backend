@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const xlsx = require('xlsx');
-const { Member, MemberAccount, AccountType, sequelize } = require('../../../models');
+const { Member, sequelize } = require('../../../models');
 const validatePhone = require('../../../core/utils/validatePhone');
 
 // Set up storage for uploaded files
@@ -55,45 +55,6 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
-// Get next available account number
-const getNextAccountNumber = async (accountTypeId) => {
-  try {
-    const accountType = await AccountType.findByPk(accountTypeId);
-    if (!accountType) {
-      throw new Error('Account type not found');
-    }
-    
-    const prefix = accountType.prefix || 'MEM';
-    
-    // Find the latest account with this prefix
-    const latestAccount = await MemberAccount.findOne({
-      where: {
-        accountNumber: {
-          [sequelize.Op.like]: `${prefix}%`
-        }
-      },
-      order: [['accountNumber', 'DESC']]
-    });
-    
-    // Default starting number
-    let nextNumber = 1;
-    
-    if (latestAccount) {
-      // Extract the number from the account number
-      const currentNumber = parseInt(latestAccount.accountNumber.replace(prefix, ''), 10);
-      if (!isNaN(currentNumber)) {
-        nextNumber = currentNumber + 1;
-      }
-    }
-    
-    // Create the new account number with padding zeros
-    const paddedNumber = String(nextNumber).padStart(6, '0');
-    return `${prefix}${paddedNumber}`;
-  } catch (error) {
-    console.error('Error generating account number:', error);
-    throw error;
-  }
-};
 
 // Generate a sample Excel template for download
 exports.generateTemplate = (req, res) => {
@@ -165,10 +126,8 @@ exports.uploadMembers = async (req, res) => {
       });
     }
     
-    // Get the account type ID and branch ID from the request or find defaults
-    let accountTypeId = req.body.accountTypeId;
+    // Get the branch ID from the request
     const branchId = req.body.branchId;
-    let defaultAccountTypeId = null;
     
     // Validate that branchId is provided
     if (!branchId) {
@@ -178,63 +137,7 @@ exports.uploadMembers = async (req, res) => {
       });
     }
     
-    console.log(`Upload request - accountTypeId: ${accountTypeId}, branchId: ${branchId}`);
-    
-    // If no account type ID provided, find a default one
-    if (!accountTypeId) {
-      try {
-        console.log('No account type ID provided, searching for a default...');
-        
-        // First try to find the SAVINGS account type (case insensitive)
-        const savingsType = await AccountType.findOne({
-          where: sequelize.where(
-            sequelize.fn('LOWER', sequelize.col('name')),
-            'savings'
-          )
-        });
-        
-        if (savingsType) {
-          defaultAccountTypeId = savingsType.id;
-          console.log(`Found SAVINGS account type with ID: ${defaultAccountTypeId}`);
-        } else {
-          // Next try to find SHARES account type
-          const sharesType = await AccountType.findOne({
-            where: sequelize.where(
-              sequelize.fn('LOWER', sequelize.col('name')),
-              'shares'
-            )
-          });
-          
-          if (sharesType) {
-            defaultAccountTypeId = sharesType.id;
-            console.log(`Found SHARES account type with ID: ${defaultAccountTypeId}`);
-          } else {
-            // Last resort - get any account type
-            const anyType = await AccountType.findOne();
-            if (anyType) {
-              defaultAccountTypeId = anyType.id;
-              console.log(`Found account type ${anyType.name} with ID: ${defaultAccountTypeId}`);
-            } else {
-              console.error('No account types found in the database');
-              return res.status(400).json({
-                success: false,
-                message: 'No account types found in the system. Please create at least one account type first.'
-              });
-            }
-          }
-        }
-        
-        // Use the default account type ID we found
-        accountTypeId = defaultAccountTypeId;
-        
-      } catch (error) {
-        console.error('Error finding default account type:', error);
-        return res.status(500).json({
-          success: false,
-          message: 'Error finding default account type: ' + error.message
-        });
-      }
-    }
+    console.log(`Upload request - branchId: ${branchId}`);
     
     try {
       const filePath = req.file.path;
@@ -312,35 +215,27 @@ exports.uploadMembers = async (req, res) => {
             console.log(`Creating member with data:`, JSON.stringify(memberData));
             const newMember = await Member.create(memberData, { transaction });
             
-            // Generate a proper account number if not provided
+            // Generate a member account number if not provided
             let accountNumber = row['Account Number'];
             if (!accountNumber) {
-              // Find the first account type (just for the prefix)
-              const defaultType = await AccountType.findOne();
-              if (defaultType && defaultType.prefix) {
-                // Use the account type's prefix to generate a number
-                accountNumber = await getNextAccountNumber(defaultType.id);
-                console.log(`Generated account number: ${accountNumber}`);
-              } else {
-                // Fallback to a generic MEM prefix
-                const prefix = 'MEM';
-                // Find the latest account with this prefix
-                const latestMember = await Member.findOne({
-                  order: [['id', 'DESC']]
-                });
-                
-                // Default starting number
-                let nextNumber = 1;
-                
-                if (latestMember && latestMember.id) {
-                  nextNumber = latestMember.id + 1;
-                }
-                
-                // Create the new account number with padding zeros
-                const paddedNumber = String(nextNumber).padStart(6, '0');
-                accountNumber = `${prefix}${paddedNumber}`;
-                console.log(`Generated fallback account number: ${accountNumber}`);
+              // Use a generic MEM prefix for member identification
+              const prefix = 'MEM';
+              // Find the latest member to get the next sequential number
+              const latestMember = await Member.findOne({
+                order: [['id', 'DESC']]
+              });
+              
+              // Default starting number
+              let nextNumber = 1;
+              
+              if (latestMember && latestMember.id) {
+                nextNumber = latestMember.id + 1;
               }
+              
+              // Create the new member account number with padding zeros
+              const paddedNumber = String(nextNumber).padStart(6, '0');
+              accountNumber = `${prefix}${paddedNumber}`;
+              console.log(`Generated member account number: ${accountNumber}`);
             }
             
             // Update the member record with the account number
