@@ -95,15 +95,19 @@ const sendOTPByEmail = async (user, otp) => {
         host: process.env.EMAIL_HOST,
         port: parseInt(process.env.EMAIL_PORT) || 587,
         secure: process.env.EMAIL_SECURE === 'true',
-        connectionTimeout: 15000,
-        socketTimeout: 15000,
+        connectionTimeout: 30000, // Increased timeout
+        socketTimeout: 30000, // Increased timeout
+        greetingTimeout: 30000, // Add greeting timeout
         debug: process.env.NODE_ENV !== 'production',
+        pool: false, // Disable connection pooling
+        maxConnections: 1, // Limit connections
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASSWORD // App password from Gmail
         },
         tls: {
-          rejectUnauthorized: false
+          rejectUnauthorized: false,
+          ciphers: 'SSLv3'
         }
       });
       console.log('📧 Using configured SMTP server:', process.env.EMAIL_HOST);
@@ -177,17 +181,39 @@ const sendOTPByEmail = async (user, otp) => {
     };
 
     console.log('🔍 DEBUG - Attempting to send email...');
-    const info = await transporter.sendMail(mailOptions);
     
-    console.log('📧 Email sent successfully:', info.messageId);
-    console.log('🔍 DEBUG - Email info:', JSON.stringify(info, null, 2));
+    // Add retry mechanism for production SMTP issues
+    let lastError;
+    const maxRetries = 3;
     
-    // For development with ethereal, log the preview URL
-    if (!process.env.EMAIL_HOST && process.env.NODE_ENV !== 'production') {
-      console.log('📧 Email preview URL:', nodemailer.getTestMessageUrl(info));
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔍 DEBUG - Email attempt ${attempt}/${maxRetries}`);
+        const info = await transporter.sendMail(mailOptions);
+        
+        console.log('📧 Email sent successfully:', info.messageId);
+        console.log('🔍 DEBUG - Email info:', JSON.stringify(info, null, 2));
+        
+        // For development with ethereal, log the preview URL
+        if (!process.env.EMAIL_HOST && process.env.NODE_ENV !== 'production') {
+          console.log('📧 Email preview URL:', nodemailer.getTestMessageUrl(info));
+        }
+        
+        return true;
+      } catch (error) {
+        lastError = error;
+        console.error(`❌ Email attempt ${attempt} failed:`, error.message);
+        
+        if (attempt < maxRetries) {
+          const delay = Math.pow(2, attempt - 1) * 2000; // 2s, 4s, 8s
+          console.log(`⏳ Retrying in ${delay/1000} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
     }
     
-    return true;
+    // All retries failed, throw the last error
+    throw lastError;
   } catch (error) {
     console.error('❌ Failed to send OTP email:', error);
     console.error('🔍 DEBUG - Email error details:', {
