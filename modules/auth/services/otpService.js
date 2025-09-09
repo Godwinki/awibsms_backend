@@ -89,36 +89,61 @@ const sendOTPByEmail = async (user, otp) => {
     let transporter;
     
     if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
-      console.log('🔍 DEBUG - Creating optimized SMTP transporter');
+      console.log('🔍 DEBUG - Creating robust SMTP transporter with fallbacks');
       
-      // Use optimized SMTP configuration with reasonable timeouts for production
+      // Try multiple SMTP configurations for production reliability
+      const smtpConfigs = [
+        {
+          name: 'Primary SMTP (Port 587)',
+          host: process.env.EMAIL_HOST,
+          port: 587,
+          secure: false,
+          connectionTimeout: 10000,
+          socketTimeout: 15000,
+          greetingTimeout: 8000,
+        },
+        {
+          name: 'Secure SMTP (Port 465)',
+          host: process.env.EMAIL_HOST,
+          port: 465,
+          secure: true,
+          connectionTimeout: 10000,
+          socketTimeout: 15000,
+          greetingTimeout: 8000,
+        },
+        {
+          name: 'Alternative Port (Port 25)',
+          host: process.env.EMAIL_HOST,
+          port: 25,
+          secure: false,
+          connectionTimeout: 8000,
+          socketTimeout: 12000,
+          greetingTimeout: 6000,
+        }
+      ];
+      
+      // Use the configured port first, then fallbacks
+      const primaryPort = parseInt(process.env.EMAIL_PORT) || 587;
+      const primaryConfig = smtpConfigs.find(config => config.port === primaryPort) || smtpConfigs[0];
+      
       transporter = nodemailer.createTransport({
-        host: process.env.EMAIL_HOST,
-        port: parseInt(process.env.EMAIL_PORT) || 587,
-        secure: process.env.EMAIL_SECURE === 'true' || false,
-        connectionTimeout: 15000, // 15 seconds for connection
-        socketTimeout: 20000, // 20 seconds for socket operations
-        greetingTimeout: 10000, // 10 seconds for greeting
-        debug: false, // Disable debug for speed
-        pool: true, // Enable connection pooling
-        maxConnections: 3,
-        maxMessages: 50,
+        ...primaryConfig,
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASSWORD
         },
         tls: {
           rejectUnauthorized: false,
-          ciphers: 'SSLv3'
+          servername: process.env.EMAIL_HOST
         },
-        // Add retry configuration
-        retry: {
-          times: 2,
-          delay: 1000
-        }
+        // Disable pooling for more reliable connections in production
+        pool: false,
+        // Add connection options for better reliability
+        requireTLS: false,
+        ignoreTLS: false
       });
       
-      console.log('📧 Using optimized SMTP server:', process.env.EMAIL_HOST);
+      console.log(`📧 Using SMTP config: ${primaryConfig.name} on ${process.env.EMAIL_HOST}`);
     }
     
     // If no transporter was created, fall back to test account
@@ -192,30 +217,86 @@ const sendOTPByEmail = async (user, otp) => {
       html
     };
 
-    console.log('🔍 DEBUG - Attempting to send email with timeout...');
+    console.log('🔍 DEBUG - Attempting to send email with fallback configurations...');
     
-    // Send email with longer timeout for production reliability
-    try {
-      const emailPromise = transporter.sendMail(mailOptions);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Email timeout')), 30000) // 30 second timeout
-      );
-      
-      const info = await Promise.race([emailPromise, timeoutPromise]);
-      
-      console.log('📧 Email sent successfully:', info.messageId);
-      console.log('🔍 DEBUG - Email info:', JSON.stringify(info, null, 2));
-      
-      // For development with ethereal, log the preview URL
-      if (!process.env.EMAIL_HOST && process.env.NODE_ENV !== 'production') {
-        console.log('📧 Email preview URL:', nodemailer.getTestMessageUrl(info));
+    // Try multiple SMTP configurations if available
+    const smtpConfigs = [
+      {
+        name: 'Primary SMTP (Port 587)',
+        host: process.env.EMAIL_HOST,
+        port: 587,
+        secure: false,
+        connectionTimeout: 8000,
+        socketTimeout: 10000,
+        greetingTimeout: 6000,
+      },
+      {
+        name: 'Secure SMTP (Port 465)',
+        host: process.env.EMAIL_HOST,
+        port: 465,
+        secure: true,
+        connectionTimeout: 8000,
+        socketTimeout: 10000,
+        greetingTimeout: 6000,
+      },
+      {
+        name: 'Alternative Port (Port 25)',
+        host: process.env.EMAIL_HOST,
+        port: 25,
+        secure: false,
+        connectionTimeout: 6000,
+        socketTimeout: 8000,
+        greetingTimeout: 4000,
       }
-      
-      return true;
-    } catch (error) {
-      console.error('❌ Email sending failed or timed out:', error.message);
-      throw new Error('Failed to send authentication code within timeout');
+    ];
+
+    let lastError = null;
+    
+    // Try each configuration until one works
+    for (const config of smtpConfigs) {
+      try {
+        console.log(`📧 Trying ${config.name}...`);
+        
+        const fallbackTransporter = nodemailer.createTransporter({
+          ...config,
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASSWORD
+          },
+          tls: {
+            rejectUnauthorized: false,
+            servername: process.env.EMAIL_HOST
+          },
+          pool: false,
+          requireTLS: false,
+          ignoreTLS: false
+        });
+
+        const emailPromise = fallbackTransporter.sendMail(mailOptions);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Email timeout')), 15000) // 15 second timeout per attempt
+        );
+        
+        const info = await Promise.race([emailPromise, timeoutPromise]);
+        
+        console.log(`📧 Email sent successfully via ${config.name}:`, info.messageId);
+        
+        // For development with ethereal, log the preview URL
+        if (!process.env.EMAIL_HOST && process.env.NODE_ENV !== 'production') {
+          console.log('📧 Email preview URL:', nodemailer.getTestMessageUrl(info));
+        }
+        
+        return true;
+      } catch (error) {
+        lastError = error;
+        console.error(`❌ ${config.name} failed:`, error.message);
+        // Continue to next configuration
+      }
     }
+    
+    // All configurations failed
+    console.error('❌ All SMTP configurations failed, last error:', lastError.message);
+    throw new Error('Failed to send authentication code - all SMTP methods failed');
   } catch (error) {
     console.error('❌ Failed to send OTP email:', error);
     console.error('🔍 DEBUG - Email error details:', {
