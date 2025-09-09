@@ -75,112 +75,39 @@ const generateAndStoreOTP = async (user) => {
  */
 const sendOTPByEmail = async (user, otp) => {
   try {
-    // Try Brevo API first (most reliable for production)
-    const brevoService = require('./brevoEmailService');
+    // Try Resend API first (most reliable for transactional emails)
+    const resendService = require('./resendEmailService');
     
-    if (brevoService.isConfigured()) {
-      console.log('📧 Using Brevo API for email delivery...');
+    if (resendService.isConfigured()) {
+      console.log('📧 Using Resend API for email delivery...');
       try {
-        return await brevoService.sendOTPEmail(user, otp);
-      } catch (brevoError) {
-        console.error('❌ Brevo API failed, falling back to SMTP:', brevoError.message);
+        return await resendService.sendOTPEmail(user, otp);
+      } catch (resendError) {
+        console.error('❌ Resend API failed, falling back to SMTP:', resendError.message);
       }
     }
     
-    // Fallback to SMTP if SendGrid is not available
-    console.log('🔍 DEBUG - SMTP fallback config check:');
-    console.log('  EMAIL_HOST:', process.env.EMAIL_HOST ? 'SET' : 'NOT SET');
+    // Fallback to SMTP (Brevo SMTP is reliable)
+    console.log('🔍 DEBUG - Using Brevo SMTP fallback...');
+    console.log('  EMAIL_HOST:', process.env.EMAIL_HOST);
     console.log('  EMAIL_USER:', process.env.EMAIL_USER ? 'SET' : 'NOT SET');
-    console.log('  EMAIL_PASSWORD:', process.env.EMAIL_PASSWORD ? 'SET' : 'NOT SET');
-    console.log('  EMAIL_PORT:', process.env.EMAIL_PORT || 'DEFAULT');
-    console.log('  EMAIL_SECURE:', process.env.EMAIL_SECURE || 'DEFAULT');
+    console.log('  EMAIL_PORT:', process.env.EMAIL_PORT);
     
-    // Use nodemailer directly for better control
     const nodemailer = require('nodemailer');
     
-    // Create transporter based on email configuration availability
-    let transporter;
-    
-    if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
-      console.log('🔍 DEBUG - Creating robust SMTP transporter with fallbacks');
-      
-      // Try multiple SMTP configurations for production reliability
-      const smtpConfigs = [
-        {
-          name: 'Primary SMTP (Port 587)',
-          host: process.env.EMAIL_HOST,
-          port: 587,
-          secure: false,
-          connectionTimeout: 10000,
-          socketTimeout: 15000,
-          greetingTimeout: 8000,
-        },
-        {
-          name: 'Secure SMTP (Port 465)',
-          host: process.env.EMAIL_HOST,
-          port: 465,
-          secure: true,
-          connectionTimeout: 10000,
-          socketTimeout: 15000,
-          greetingTimeout: 8000,
-        },
-        {
-          name: 'Alternative Port (Port 25)',
-          host: process.env.EMAIL_HOST,
-          port: 25,
-          secure: false,
-          connectionTimeout: 8000,
-          socketTimeout: 12000,
-          greetingTimeout: 6000,
-        }
-      ];
-      
-      // Use the configured port first, then fallbacks
-      const primaryPort = parseInt(process.env.EMAIL_PORT) || 587;
-      const primaryConfig = smtpConfigs.find(config => config.port === primaryPort) || smtpConfigs[0];
-      
-      transporter = nodemailer.createTransport({
-        ...primaryConfig,
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASSWORD
-        },
-        tls: {
-          rejectUnauthorized: false,
-          servername: process.env.EMAIL_HOST
-        },
-        // Disable pooling for more reliable connections in production
-        pool: false,
-        // Add connection options for better reliability
-        requireTLS: false,
-        ignoreTLS: false
-      });
-      
-      console.log(`📧 Using SMTP config: ${primaryConfig.name} on ${process.env.EMAIL_HOST}`);
-    }
-    
-    // If no transporter was created, fall back to test account
-    if (!transporter) {
-      console.log('🔍 DEBUG - Creating fallback test account');
-      // For development without email config, create a test account
-      const testAccount = await nodemailer.createTestAccount();
-      
-      transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass
-        }
-      });
-      
-      console.log('📧 Development email credentials:', {
-        user: testAccount.user,
-        pass: testAccount.pass,
-        preview: 'https://ethereal.email'
-      });
-    }
+    // Create simple SMTP transporter for Brevo
+    const transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_HOST,
+      port: parseInt(process.env.EMAIL_PORT) || 587,
+      secure: process.env.EMAIL_SECURE === 'true',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
 
     const subject = 'Your AWIB SACCO Authentication Code';
     const html = `
@@ -224,92 +151,22 @@ const sendOTPByEmail = async (user, otp) => {
     `;
 
     const mailOptions = {
-      from: `"AWIB SACCO" <${process.env.EMAIL_FROM || 'noreply@awib-saccos.com'}>`,
+      from: `"AWIB SACCO" <${process.env.EMAIL_FROM || 'awibsaccos@gmail.com'}>`,
       to: user.email,
       subject,
       html
     };
 
-    console.log('🔍 DEBUG - Attempting to send email with fallback configurations...');
+    console.log('📧 Sending email via Brevo SMTP...');
     
-    // Try multiple SMTP configurations if available
-    const smtpConfigs = [
-      {
-        name: 'Primary SMTP (Port 587)',
-        host: process.env.EMAIL_HOST,
-        port: 587,
-        secure: false,
-        connectionTimeout: 8000,
-        socketTimeout: 10000,
-        greetingTimeout: 6000,
-      },
-      {
-        name: 'Secure SMTP (Port 465)',
-        host: process.env.EMAIL_HOST,
-        port: 465,
-        secure: true,
-        connectionTimeout: 8000,
-        socketTimeout: 10000,
-        greetingTimeout: 6000,
-      },
-      {
-        name: 'Alternative Port (Port 25)',
-        host: process.env.EMAIL_HOST,
-        port: 25,
-        secure: false,
-        connectionTimeout: 6000,
-        socketTimeout: 8000,
-        greetingTimeout: 4000,
-      }
-    ];
-
-    let lastError = null;
-    
-    // Try each configuration until one works
-    for (const config of smtpConfigs) {
-      try {
-        console.log(`📧 Trying ${config.name}...`);
-        
-        const fallbackTransporter = nodemailer.createTransporter({
-          ...config,
-          auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASSWORD
-          },
-          tls: {
-            rejectUnauthorized: false,
-            servername: process.env.EMAIL_HOST
-          },
-          pool: false,
-          requireTLS: false,
-          ignoreTLS: false
-        });
-
-        const emailPromise = fallbackTransporter.sendMail(mailOptions);
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Email timeout')), 15000) // 15 second timeout per attempt
-        );
-        
-        const info = await Promise.race([emailPromise, timeoutPromise]);
-        
-        console.log(`📧 Email sent successfully via ${config.name}:`, info.messageId);
-        
-        // For development with ethereal, log the preview URL
-        if (!process.env.EMAIL_HOST && process.env.NODE_ENV !== 'production') {
-          console.log('📧 Email preview URL:', nodemailer.getTestMessageUrl(info));
-        }
-        
-        return true;
-      } catch (error) {
-        lastError = error;
-        console.error(`❌ ${config.name} failed:`, error.message);
-        // Continue to next configuration
-      }
+    try {
+      const info = await transporter.sendMail(mailOptions);
+      console.log('✅ Email sent successfully via Brevo SMTP:', info.messageId);
+      return true;
+    } catch (error) {
+      console.error('❌ Brevo SMTP failed:', error.message);
+      throw new Error('Failed to send authentication code via SMTP');
     }
-    
-    // All configurations failed
-    console.error('❌ All SMTP configurations failed, last error:', lastError.message);
-    throw new Error('Failed to send authentication code - all SMTP methods failed');
   } catch (error) {
     console.error('❌ Failed to send OTP email:', error);
     console.error('🔍 DEBUG - Email error details:', {

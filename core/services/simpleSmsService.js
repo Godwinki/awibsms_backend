@@ -74,11 +74,14 @@ class SimpleSmsService {
       const response = await axios.post(this.apiUrl, payload, {
         headers: {
           "Content-Type": "application/json",
-          "api_key": this.apiKey,
-          "api_secret": this.apiSecret
+          "Authorization": `Bearer ${this.apiKey}:${this.apiSecret}`
         },
         timeout: 15000,
-        validateStatus: (status) => status < 500 // Accept 4xx responses to see error details
+        validateStatus: (status) => status < 500, // Accept 4xx responses to see error details
+        httpsAgent: new (require('https').Agent)({
+          rejectUnauthorized: false,
+          secureProtocol: 'TLSv1_2_method'
+        })
       });
 
       console.log(`📱 Response status: ${response.status}`);
