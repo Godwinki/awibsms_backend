@@ -75,7 +75,20 @@ const generateAndStoreOTP = async (user) => {
  */
 const sendOTPByEmail = async (user, otp) => {
   try {
-    console.log('🔍 DEBUG - Email config check:');
+    // Try Brevo API first (most reliable for production)
+    const brevoService = require('./brevoEmailService');
+    
+    if (brevoService.isConfigured()) {
+      console.log('📧 Using Brevo API for email delivery...');
+      try {
+        return await brevoService.sendOTPEmail(user, otp);
+      } catch (brevoError) {
+        console.error('❌ Brevo API failed, falling back to SMTP:', brevoError.message);
+      }
+    }
+    
+    // Fallback to SMTP if SendGrid is not available
+    console.log('🔍 DEBUG - SMTP fallback config check:');
     console.log('  EMAIL_HOST:', process.env.EMAIL_HOST ? 'SET' : 'NOT SET');
     console.log('  EMAIL_USER:', process.env.EMAIL_USER ? 'SET' : 'NOT SET');
     console.log('  EMAIL_PASSWORD:', process.env.EMAIL_PASSWORD ? 'SET' : 'NOT SET');
