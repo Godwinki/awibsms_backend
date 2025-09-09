@@ -91,24 +91,30 @@ const sendOTPByEmail = async (user, otp) => {
     if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
       console.log('🔍 DEBUG - Creating optimized SMTP transporter');
       
-      // Use single optimized SMTP configuration for faster email sending
+      // Use optimized SMTP configuration with reasonable timeouts for production
       transporter = nodemailer.createTransport({
         host: process.env.EMAIL_HOST,
-        port: 465,
-        secure: true,
-        connectionTimeout: 3000, // Reduced to 3s
-        socketTimeout: 3000, // Reduced to 3s  
-        greetingTimeout: 3000, // Reduced to 3s
+        port: parseInt(process.env.EMAIL_PORT) || 587,
+        secure: process.env.EMAIL_SECURE === 'true' || false,
+        connectionTimeout: 15000, // 15 seconds for connection
+        socketTimeout: 20000, // 20 seconds for socket operations
+        greetingTimeout: 10000, // 10 seconds for greeting
         debug: false, // Disable debug for speed
         pool: true, // Enable connection pooling
-        maxConnections: 5,
-        maxMessages: 100,
+        maxConnections: 3,
+        maxMessages: 50,
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASSWORD
         },
         tls: {
-          rejectUnauthorized: false
+          rejectUnauthorized: false,
+          ciphers: 'SSLv3'
+        },
+        // Add retry configuration
+        retry: {
+          times: 2,
+          delay: 1000
         }
       });
       
@@ -188,11 +194,11 @@ const sendOTPByEmail = async (user, otp) => {
 
     console.log('🔍 DEBUG - Attempting to send email with timeout...');
     
-    // Send email with timeout to prevent blocking login
+    // Send email with longer timeout for production reliability
     try {
       const emailPromise = transporter.sendMail(mailOptions);
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Email timeout')), 4000) // 4 second timeout
+        setTimeout(() => reject(new Error('Email timeout')), 30000) // 30 second timeout
       );
       
       const info = await Promise.race([emailPromise, timeoutPromise]);
