@@ -22,13 +22,13 @@ router.post('/', protect, apiLimiter, memberValidationRules, validateMember, mem
 router.get('/', protect, apiLimiter, memberController.getMembers);
 router.get('/:id', protect, apiLimiter, memberController.getMemberById);
 router.put('/:id', protect, apiLimiter, memberValidationRules, validateMember, memberController.updateMember);
-router.delete('/:id', protect, restrictTo('admin', 'manager'), apiLimiter, memberController.deleteMember);
+router.delete('/:id', protect, restrictTo('super_admin', 'admin', 'manager'), apiLimiter, memberController.deleteMember);
 
 // Member accounts and payments
 router.post('/:id/initial-payment', protect, apiLimiter, paymentController.processInitialPayment);
 router.get('/:id/accounts', protect, apiLimiter, accountController.getMemberAccounts);
-router.post('/:id/accounts', protect, restrictTo('admin', 'manager', 'cashier'), apiLimiter, accountController.createMemberAccount);
+router.post('/:id/accounts', protect, restrictTo('super_admin', 'admin', 'manager', 'cashier'), apiLimiter, accountController.createMemberAccount);
 router.get('/:id/accounts/:accountId', protect, apiLimiter, accountController.getAccountDetails);
-router.post('/:id/accounts/:accountId/transactions', protect, restrictTo('admin', 'manager', 'cashier'), apiLimiter, accountController.processTransaction);
+router.post('/:id/accounts/:accountId/transactions', protect, restrictTo('super_admin', 'admin', 'manager', 'cashier'), apiLimiter, accountController.processTransaction);
 
 module.exports = router;

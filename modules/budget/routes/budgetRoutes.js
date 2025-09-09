@@ -6,18 +6,18 @@ const { protect, restrictTo } = require('../../auth/middleware/authMiddleware');
 router.use(protect);
 
 // Get all budgets
-router.get('/', restrictTo('admin', 'manager'), budgetController.getBudgets);
+router.get('/', restrictTo('super_admin', 'admin', 'manager'), budgetController.getBudgets);
 
 // Create new budget
-router.post('/', restrictTo('admin'), budgetController.createBudget);
+router.post('/', restrictTo('super_admin', 'admin'), budgetController.createBudget);
 
 // Get specific budget
-router.get('/:id', restrictTo('admin', 'manager'), budgetController.getBudget);
+router.get('/:id', restrictTo('super_admin', 'admin', 'manager'), budgetController.getBudget);
 
 // Update budget
-router.patch('/:id', restrictTo('admin'), budgetController.updateBudget);
+router.patch('/:id', restrictTo('super_admin', 'admin'), budgetController.updateBudget);
 
 // Delete budget
-router.delete('/:id', restrictTo('admin'), budgetController.deleteBudget);
+router.delete('/:id', restrictTo('super_admin', 'admin'), budgetController.deleteBudget);
 
 module.exports = router; 

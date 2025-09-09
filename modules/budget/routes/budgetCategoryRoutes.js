@@ -12,16 +12,16 @@ router.use(protect);
 
 router
   .route('/')
-  .post(restrictTo('admin', 'manager'), budgetCategoryController.createBudgetCategory);
+  .post(restrictTo('super_admin', 'admin', 'manager'), budgetCategoryController.createBudgetCategory);
 
 router
   .route('/:id')
-  .patch(restrictTo('admin', 'manager'), budgetCategoryController.updateBudgetCategory)
-  .delete(restrictTo('admin'), budgetCategoryController.deleteBudgetCategory);
+  .patch(restrictTo('super_admin', 'admin', 'manager'), budgetCategoryController.updateBudgetCategory)
+  .delete(restrictTo('super_admin', 'admin'), budgetCategoryController.deleteBudgetCategory);
 
 // Add the route for allocating budget to a category
 router
   .route('/:id/allocate')
-  .post(restrictTo('admin', 'manager'), budgetCategoryController.allocateBudgetToCategory);
+  .post(restrictTo('super_admin', 'admin', 'manager'), budgetCategoryController.allocateBudgetToCategory);
 
 module.exports = router; 
