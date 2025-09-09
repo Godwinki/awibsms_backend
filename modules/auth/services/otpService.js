@@ -291,49 +291,41 @@ const generateAndSendOTP = async (user) => {
     // }
     
     // Send SMS first (fast), then email in background
-    let emailSuccess = false;
     let smsSuccess = false;
-    let emailError = null;
     let smsError = null;
     
-    // Try SMS first (it's working and fast)
     try {
       if (user.phoneNumber) {
-        console.log('📱 Sending SMS first...');
+        console.log('📱 Sending SMS OTP...');
         smsSuccess = await sendOTPBySMS(user, otp);
       }
     } catch (error) {
       smsError = error;
       console.error('📱 SMS OTP failed:', error.message);
     }
+
+    // Send email in background without awaiting it
+    (async () => {
+      try {
+        console.log('📧 Starting background email OTP send...');
+        const emailSuccess = await sendOTPByEmail(user, otp);
+        console.log(`📧 Email OTP ${emailSuccess ? 'sent successfully' : 'failed'}`);
+      } catch (error) {
+        console.error('📧 Background email OTP failed:', error.message);
+      }
+    })();
+
+    // Log SMS result (email result will be logged in the background)
+    console.log(`📱 SMS OTP: ${smsSuccess ? 'Success' : 'Failed'}`);
     
-    // Try email with shorter timeout to prevent blocking
-    try {
-      console.log('📧 Attempting email with reduced timeout...');
-      emailSuccess = await Promise.race([
-        sendOTPByEmail(user, otp),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Email timeout after 10 seconds')), 10000)
-        )
-      ]);
-    } catch (error) {
-      emailError = error;
-      console.error('📧 Email OTP failed (timeout or error):', error.message);
-    }
-    
-    // Log results
-    console.log(`📧 Email OTP: ${emailSuccess ? 'Success' : 'Failed'}`);
-    console.log(`📱 SMS OTP: ${smsSuccess ? 'Success' : 'Skipped/Failed'}`);
-    
-    // Return true if at least one method succeeded
-    const overallSuccess = emailSuccess || smsSuccess;
+    // Return true if SMS was successful (we don't wait for email)
+    const overallSuccess = smsSuccess;
     
     if (overallSuccess) {
-      console.log('✅ OTP sent successfully via at least one method');
+      console.log('✅ OTP sent successfully via SMS');
     } else {
-      console.log('❌ Failed to send OTP via any method');
-      console.log('🔍 DEBUG - All methods failed:', {
-        emailError: emailError?.message,
+      console.log('❌ Failed to send OTP via SMS');
+      console.log('🔍 DEBUG - SMS sending failed:', {
         smsError: smsError?.message,
         environment: process.env.NODE_ENV
       });
