@@ -65,7 +65,7 @@ class AuthService {
       process.env.JWT_SECRET,
       { 
         expiresIn: '1d',
-        issuer: 'AWIB SACCO Management System',
+        issuer: 'AWIB SACCOS Management System',
         subject: user.id.toString()
       }
     );

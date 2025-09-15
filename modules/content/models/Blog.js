@@ -105,6 +105,18 @@ const Blog = sequelize.define('Blog', {
     type: DataTypes.INTEGER,
     allowNull: true
   },
+  images: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: [],
+    validate: {
+      isArray(value) {
+        if (value && !Array.isArray(value)) {
+          throw new Error('Images must be an array');
+        }
+      }
+    }
+  },
   metaTitle: {
     type: DataTypes.STRING,
     allowNull: true,
@@ -224,6 +236,20 @@ Blog.prototype.toJSON = function() {
     } catch (e) {
       values.tags = [];
     }
+  }
+  
+  // Parse images if it's a string
+  if (typeof values.images === 'string') {
+    try {
+      values.images = JSON.parse(values.images);
+    } catch (e) {
+      values.images = [];
+    }
+  }
+  
+  // Ensure images is always an array
+  if (!Array.isArray(values.images)) {
+    values.images = [];
   }
   
   return values;

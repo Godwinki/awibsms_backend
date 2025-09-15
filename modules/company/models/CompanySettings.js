@@ -10,7 +10,7 @@ module.exports = (sequelize, DataTypes) => {
     companyName: {
       type: DataTypes.STRING,
       allowNull: false,
-      defaultValue: 'AWIB SACCO Society Ltd'
+      defaultValue: 'AWIB SACCOS Society Ltd'
     },
     companyCode: {
       type: DataTypes.STRING(10),

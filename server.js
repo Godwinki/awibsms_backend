@@ -230,7 +230,7 @@ app.set('trust proxy', process.env.NODE_ENV === 'production' ? 1 : 0); // Trust 
 // Use the cors package instead of custom middleware for more reliable CORS handling
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',') 
-  : ['http://localhost:3000', 'https://system.awib-saccos.com', 'https://awib-saccos.com','https://www.awib-saccos.com'];
+  : ['http://localhost:3000', 'https://system.awib-saccos.com', 'https://awib-saccos.com','https://www.awib-saccos.com','http://localhost:3001'];
 
 app.use(cors({
   origin: function(origin, callback) {
@@ -306,7 +306,7 @@ app.use(limiter);
 app.get('/', (req, res) => {
   res.status(200).json({
     status: 'success',
-    message: 'AWIB SACCO API is running',
+    message: 'AWIB SACCOS API is running',
     environment: process.env.NODE_ENV,
     timestamp: new Date().toISOString(),
     version: process.env.npm_package_version || '1.0.0',

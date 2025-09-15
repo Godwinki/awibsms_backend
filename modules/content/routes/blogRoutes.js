@@ -20,8 +20,8 @@ router.use(protect); // Apply authentication middleware to all routes below
 router.get('/', blogController.getAllBlogs);
 router.get('/stats', blogController.getBlogStats);
 router.get('/:id', blogController.getBlog);
-router.post('/', blogMulter.single('featuredImage'), blogController.createBlog);
-router.put('/:id', blogMulter.single('featuredImage'), blogController.updateBlog);
+router.post('/', blogMulter.multiple, blogController.createBlog);
+router.put('/:id', blogMulter.multiple, blogController.updateBlog);
 router.delete('/:id', blogController.deleteBlog);
 router.patch('/:id/publish', blogController.publishBlog);
 router.post('/validate-slug', blogController.validateSlug);

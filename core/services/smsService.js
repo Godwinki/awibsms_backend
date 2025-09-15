@@ -128,13 +128,13 @@ class SmsService {
     
     const message = `Hello ${firstName},
 
-Your AWIB SACCO verification code is: ${otp}
+Your AWIB SACCOS verification code is: ${otp}
 
 This code will expire in 10 minutes. Do not share this code with anyone.
 
 If you didn't request this, please ignore this message.
 
-AWIB SACCO Management System`;
+AWIB SACCOS Management System`;
 
     return await this.sendSMS(phoneNumber, message);
   }
@@ -151,13 +151,13 @@ AWIB SACCO Management System`;
     
     const message = `Hello ${firstName},
 
-Your AWIB SACCO account unlock verification code is: ${otp}
+Your AWIB SACCOS account unlock verification code is: ${otp}
 
 This code will expire in 10 minutes. Use this code to unlock your account.
 
 If you didn't request this, please contact support immediately.
 
-AWIB SACCO Management System`;
+AWIB SACCOS Management System`;
 
     return await this.sendSMS(phoneNumber, message);
   }
@@ -178,45 +178,45 @@ AWIB SACCO Management System`;
       case 'login_from_new_device':
         message = `Hello ${firstName},
 
-Security Alert: Your AWIB SACCO account was accessed from a new device.
+Security Alert: Your AWIB SACCOS account was accessed from a new device.
 
 Time: ${new Date().toLocaleString()}
 
 If this was you, no action needed. If not, please contact support immediately.
 
-AWIB SACCO Management System`;
+AWIB SACCOS Management System`;
         break;
         
       case 'password_changed':
         message = `Hello ${firstName},
 
-Security Alert: Your AWIB SACCO account password was changed.
+Security Alert: Your AWIB SACCOS account password was changed.
 
 Time: ${new Date().toLocaleString()}
 
 If you didn't make this change, please contact support immediately.
 
-AWIB SACCO Management System`;
+AWIB SACCOS Management System`;
         break;
         
       case 'account_locked':
         message = `Hello ${firstName},
 
-Security Alert: Your AWIB SACCO account has been locked due to multiple failed login attempts.
+Security Alert: Your AWIB SACCOS account has been locked due to multiple failed login attempts.
 
 Please contact support or use the account unlock feature to regain access.
 
-AWIB SACCO Management System`;
+AWIB SACCOS Management System`;
         break;
         
       default:
         message = `Hello ${firstName},
 
-Security Alert: There was unusual activity on your AWIB SACCO account.
+Security Alert: There was unusual activity on your AWIB SACCOS account.
 
 Please review your account and contact support if needed.
 
-AWIB SACCO Management System`;
+AWIB SACCOS Management System`;
     }
 
     return await this.sendSMS(phoneNumber, message);

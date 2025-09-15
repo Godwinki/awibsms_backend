@@ -28,7 +28,7 @@ const fileFilter = (req, file, cb) => {
   if (file.mimetype.startsWith('image/')) {
     cb(null, true);
   } else {
-    cb(new Error('Only image files are allowed for blog featured images'), false);
+    cb(new Error('Only image files are allowed for blog images'), false);
   }
 };
 
@@ -36,9 +36,23 @@ const fileFilter = (req, file, cb) => {
 const blogMulter = multer({
   storage: storage,
   limits: {
-    fileSize: 15 * 1024 * 1024, // 15MB limit for blog featured images
+    fileSize: 15 * 1024 * 1024, // 15MB limit per image
+    files: 10 // Allow up to 10 images per blog post
   },
   fileFilter: fileFilter
 });
 
-module.exports = blogMulter;
+// Export different configurations
+module.exports = {
+  // Single featured image upload (for backward compatibility)
+  single: blogMulter.single('featuredImage'),
+  
+  // Multiple images upload (new feature)
+  multiple: blogMulter.fields([
+    { name: 'featuredImage', maxCount: 1 },
+    { name: 'images', maxCount: 9 } // 9 additional images + 1 featured = 10 total
+  ]),
+  
+  // All images as array (alternative approach)
+  array: blogMulter.array('images', 10)
+};

@@ -1,5 +1,5 @@
 /**
- * AWIB SACCOS Management System - Module Registry
+ * AWIB SACCOS  Management System - Module Registry
  * 
  * This file serves as the central registry for all business modules.
  * Each module encapsulates a specific business domain with its own

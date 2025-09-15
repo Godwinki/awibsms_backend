@@ -1,7 +1,7 @@
 {
   "name": "awibsms-backend",
   "version": "1.0.0",
-  "description": "AWIB SACCO Management System Backend",
+  "description": "AWIB SACCOS Management System Backend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

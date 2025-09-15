@@ -15,9 +15,9 @@ async function diagnoseSMSDelivery() {
   
   // Test SMS with different phone formats
   const smsPayload = {
-    senderId: 'AWIB SACCOS',
+    senderId: 'AWIB SACCOS ',
     messageType: 'text',
-    message: 'TEST: AWIB SACCO delivery test. If you receive this, SMS is working.',
+    message: 'TEST: AWIB SACCOS delivery test. If you receive this, SMS is working.',
     contacts: formattedPhone, // Try with + prefix
     deliveryReportUrl: ''
   };
@@ -101,7 +101,7 @@ async function diagnoseEmailDelivery() {
     
     const testEmail = {
       sender: {
-        name: 'AWIB SACCO Test',
+        name: 'AWIB SACCOS Test',
         email: senderEmail
       },
       to: [
@@ -140,7 +140,7 @@ async function diagnoseEmailDelivery() {
 }
 
 async function runDiagnostics() {
-  console.log('🏥 AWIB SACCO DELIVERY DIAGNOSTICS');
+  console.log('🏥 AWIB SACCOS DELIVERY DIAGNOSTICS');
   console.log('Time:', new Date().toISOString());
   console.log('=' .repeat(60));
   

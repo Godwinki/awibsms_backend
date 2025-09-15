@@ -1,6 +1,6 @@
 {
-  "name": "AWIB SACCO Management System",
-  "description": "Backend API for the AWIB SACCO Management System with Tanzania SMS integration",
+  "name": "AWIB SACCOS Management System",
+  "description": "Backend API for the AWIB SACCOS Management System with Tanzania SMS integration",
   "env": {
     "NODE_ENV": {
       "description": "Environment (production, development)",

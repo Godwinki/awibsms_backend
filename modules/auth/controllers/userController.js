@@ -254,7 +254,7 @@ exports.login = async (req, res) => {
       process.env.JWT_SECRET,
       { 
         expiresIn: '30m', // Short expiration for banking security
-        issuer: 'AWIB SACCO Management System',
+        issuer: 'AWIB SACCOS Management System',
         subject: user.id.toString()
       }
     );

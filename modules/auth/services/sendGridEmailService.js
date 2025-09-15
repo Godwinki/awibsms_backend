@@ -35,7 +35,7 @@ class SendGridEmailService {
       throw new Error('SendGrid service not configured');
     }
 
-    const subject = 'Your AWIB SACCO Authentication Code';
+    const subject = 'Your AWIB SACCOS Authentication Code';
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
@@ -69,7 +69,7 @@ class SendGridEmailService {
         
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center;">
           <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-            This email was sent from AWIB SACCO Management System<br>
+            This email was sent from AWIB SACCOS Management System<br>
             Please do not reply to this email.
           </p>
         </div>
@@ -84,7 +84,7 @@ class SendGridEmailService {
       },
       subject,
       html,
-      text: `Your AWIB SACCO authentication code is: ${otp}. This code will expire in 10 minutes. If you didn't request this code, please secure your account immediately.`
+      text: `Your AWIB SACCOS authentication code is: ${otp}. This code will expire in 10 minutes. If you didn't request this code, please secure your account immediately.`
     };
 
     try {
@@ -145,7 +145,7 @@ class SendGridEmailService {
         
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center;">
           <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-            This email was sent from AWIB SACCO Management System<br>
+            This email was sent from AWIB SACCOS Management System<br>
             Please do not reply to this email.
           </p>
         </div>

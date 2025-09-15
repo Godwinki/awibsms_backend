@@ -37,14 +37,14 @@ class ResendEmailService {
       throw new Error('Resend service not configured');
     }
 
-    const subject = 'Your AWIB SACCO Authentication Code';
+    const subject = 'Your AWIB SACCOS Authentication Code';
     const html = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AWIB SACCO - Authentication Code</title>
+        <title>AWIB SACCOS - Authentication Code</title>
       </head>
       <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
         <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px;">
@@ -74,7 +74,7 @@ class ResendEmailService {
               <p style="color: #475569; margin: 0 0 10px 0; font-size: 14px; font-weight: bold;">Security Notice:</p>
               <ul style="color: #475569; margin: 0; padding-left: 20px; font-size: 14px;">
                 <li>Never share this code with anyone</li>
-                <li>AWIB SACCO will never ask for this code via phone or email</li>
+                <li>AWIB SACCOS will never ask for this code via phone or email</li>
                 <li>If you didn't request this, secure your account immediately</li>
               </ul>
             </div>
@@ -95,11 +95,11 @@ class ResendEmailService {
       console.log('📧 Sending OTP email via Resend to:', user.email);
       
       const { data, error } = await this.resend.emails.send({
-        from: 'AWIB SACCO <noreply@awib-saccos.com>',
+        from: 'AWIB SACCOS <noreply@awib-saccos.com>',
         to: [user.email],
         subject,
         html,
-        text: `Your AWIB SACCO authentication code is: ${otp}. This code will expire in 10 minutes. Never share this code with anyone.`
+        text: `Your AWIB SACCOS authentication code is: ${otp}. This code will expire in 10 minutes. Never share this code with anyone.`
       });
 
       if (error) {
@@ -178,7 +178,7 @@ class ResendEmailService {
           
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center;">
             <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-              This email was sent from AWIB SACCO Management System<br>
+              This email was sent from AWIB SACCOS Management System<br>
               Please do not reply to this email
             </p>
           </div>
@@ -191,7 +191,7 @@ class ResendEmailService {
       console.log('📧 Sending welcome email via Resend to:', user.email);
       
       const { data, error } = await this.resend.emails.send({
-        from: 'AWIB SACCO <noreply@awib-saccos.com>',
+        from: 'AWIB SACCOS <noreply@awib-saccos.com>',
         to: [user.email],
         subject,
         html,

@@ -283,11 +283,11 @@ class CommunicationService {
     
     const message = `Hello ${firstName},
 
-Your AWIB SACCO verification code is: ${otp}
+Your AWIB SACCOS verification code is: ${otp}
 
 This code will expire in 10 minutes. Do not share this code with anyone.
 
-AWIB SACCO Management System`;
+AWIB SACCOS Management System`;
 
     const result = await this.sendSMS(phoneNumber, message);
     return result.success;
@@ -298,11 +298,11 @@ AWIB SACCO Management System`;
     
     const message = `Hello ${firstName},
 
-Your AWIB SACCO account unlock code is: ${otp}
+Your AWIB SACCOS account unlock code is: ${otp}
 
 This code will expire in 10 minutes. Use this code to unlock your account.
 
-AWIB SACCO Management System`;
+AWIB SACCOS Management System`;
 
     const result = await this.sendSMS(phoneNumber, message);
     return result.success;

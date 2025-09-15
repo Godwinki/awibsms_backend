@@ -33,7 +33,7 @@ async function testBrevoAPI() {
     // Test sending a simple email
     const testEmail = {
       sender: {
-        name: 'AWIB SACCO Test',
+        name: 'AWIB SACCOS Test',
         email: process.env.EMAIL_FROM || 'awibsaccos@gmail.com'
       },
       to: [

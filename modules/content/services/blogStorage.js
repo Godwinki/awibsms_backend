@@ -88,6 +88,67 @@ class BlogStorageService {
     }
   }
 
+  // Upload multiple images to Supabase storage
+  async uploadMultipleImages(files, blogId) {
+    if (!supabase || !files || files.length === 0) {
+      return [];
+    }
+
+    const uploadPromises = files.map(async (file, index) => {
+      try {
+        // Generate unique filename
+        const fileExt = path.extname(file.originalname);
+        const fileName = `blog-${blogId}-image-${index + 1}-${Date.now()}${fileExt}`;
+        const filePath = `gallery/${fileName}`;
+
+        // Read file buffer
+        const fileBuffer = fs.readFileSync(file.path);
+
+        // Upload to Supabase storage
+        const { data, error } = await supabase.storage
+          .from(this.bucketName)
+          .upload(filePath, fileBuffer, {
+            contentType: file.mimetype,
+            upsert: false
+          });
+
+        if (error) {
+          console.error('❌ Supabase upload error for image:', error);
+          throw error;
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from(this.bucketName)
+          .getPublicUrl(filePath);
+
+        // Clean up local file
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+
+        console.log(`✅ Image uploaded to Supabase: ${filePath}`);
+        return {
+          url: urlData.publicUrl,
+          path: filePath,
+          originalName: file.originalname,
+          size: file.size,
+          order: index
+        };
+      } catch (error) {
+        console.error('❌ Failed to upload image to Supabase:', error);
+        // Clean up local file even if upload failed
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+        return null;
+      }
+    });
+
+    const results = await Promise.all(uploadPromises);
+    return results.filter(result => result !== null);
+  }
+
   // Delete featured image from Supabase storage
   async deleteFeaturedImage(filePath) {
     if (!supabase || !filePath) {
@@ -106,6 +167,27 @@ class BlogStorageService {
       }
     } catch (error) {
       console.error('❌ Error deleting featured image from Supabase:', error);
+    }
+  }
+
+  // Delete multiple images from Supabase storage
+  async deleteMultipleImages(imagePaths) {
+    if (!supabase || !imagePaths || imagePaths.length === 0) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase.storage
+        .from(this.bucketName)
+        .remove(imagePaths);
+
+      if (error) {
+        console.error('❌ Failed to delete images from Supabase:', error);
+      } else {
+        console.log(`✅ ${imagePaths.length} images deleted from Supabase`);
+      }
+    } catch (error) {
+      console.error('❌ Error deleting images from Supabase:', error);
     }
   }
 

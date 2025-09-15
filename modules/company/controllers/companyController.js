@@ -240,7 +240,7 @@ exports.updateBusinessRules = async (req, res) => {
  */
 exports.initializeCompanySettings = async (req, res) => {
   try {
-    console.log('🏢 [Company] Initializing AWIB SACCO settings...');
+    console.log('🏢 [Company] Initializing AWIB SACCOS settings...');
     
     // Check if settings already exist
     const existingSettings = await CompanySettings.findOne();
@@ -280,10 +280,10 @@ exports.initializeCompanySettings = async (req, res) => {
     
     const settings = await CompanySettings.create(awibSettings);
     
-    console.log('✅ [Company] AWIB SACCO settings initialized successfully');
+    console.log('✅ [Company] AWIB SACCOS settings initialized successfully');
     res.status(201).json({
       status: 'success',
-      message: 'AWIB SACCO settings initialized successfully',
+      message: 'AWIB SACCOS settings initialized successfully',
       data: settings
     });
   } catch (error) {

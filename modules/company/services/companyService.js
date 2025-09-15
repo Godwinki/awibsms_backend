@@ -237,7 +237,7 @@ class CompanyService {
    */
   static getDefaultSettings() {
     return {
-      companyName: 'AWIB SACCO Society Ltd',
+      companyName: 'AWIB SACCOS Society Ltd',
       companyCode: 'AWIB',
       city: 'Arusha',
       region: 'Arusha',

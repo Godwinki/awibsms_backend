@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the comprehensive solutions implemented for handling super admin account lockouts in the AWIB SACCOS Management System. When a super admin account gets locked, it creates a critical security situation that requires special handling.
+This document outlines the comprehensive solutions implemented for handling super admin account lockouts in the AWIB SACCOS  Management System. When a super admin account gets locked, it creates a critical security situation that requires special handling.
 
 ## 🚨 Emergency Scenarios
 

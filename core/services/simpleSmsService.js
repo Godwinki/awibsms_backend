@@ -7,7 +7,7 @@ class SimpleSmsService {
   constructor() {
     this.apiKey = process.env.api_key;
     this.apiSecret = process.env.api_secret;
-    this.senderId = process.env.KILAKONA_SENDER_ID || 'AWIB SACCOS'; 
+    this.senderId = process.env.KILAKONA_SENDER_ID || 'AWIB SACCOS '; 
     // Correct Kilakona API endpoint from documentation
     this.apiUrl = 'https://messaging.kilakona.co.tz/api/v1/vendor/message/send';
     
@@ -118,11 +118,11 @@ class SimpleSmsService {
     
     const message = `Hello ${firstName},
 
-Your AWIB SACCO verification code is: ${otp}
+Your AWIB SACCOS verification code is: ${otp}
 
 This code will expire in 10 minutes. Do not share this code with anyone.
 
-AWIB SACCO Management System`;
+AWIB SACCOS Management System`;
 
     return await this.sendSMS(phoneNumber, message);
   }
@@ -132,11 +132,11 @@ AWIB SACCO Management System`;
     
     const message = `Hello ${firstName},
 
-Your AWIB SACCO account unlock code is: ${otp}
+Your AWIB SACCOS account unlock code is: ${otp}
 
 This code will expire in 10 minutes. Use this code to unlock your account.
 
-AWIB SACCO Management System`;
+AWIB SACCOS Management System`;
 
     return await this.sendSMS(phoneNumber, message);
   }

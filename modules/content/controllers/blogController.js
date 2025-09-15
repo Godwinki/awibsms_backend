@@ -268,33 +268,59 @@ exports.createBlog = async (req, res) => {
       metaTitle,
       metaDescription,
       isPublic: isPublic !== undefined ? isPublic : true,
-      authorId: req.user.id
+      authorId: req.user.id,
+      images: [] // Initialize empty images array
     };
 
-    // Handle featured image upload with Supabase storage
+    // Handle image uploads with Supabase storage
     let imageData = {};
-    if (req.file) {
+    let uploadedImages = [];
+    
+    if (req.files) {
       try {
         if (blogStorage.isAvailable()) {
-          // Upload to Supabase
-          const uploadResult = await blogStorage.uploadFeaturedImage(req.file, 'temp');
-          imageData = {
-            featuredImageUrl: uploadResult.url,
-            featuredImagePath: uploadResult.path,
-            featuredImageOriginalName: uploadResult.originalName,
-            featuredImageSize: uploadResult.size
-          };
-          console.log('✅ [Blog] Featured image uploaded to Supabase');
+          // Handle featured image
+          if (req.files.featuredImage && req.files.featuredImage.length > 0) {
+            const uploadResult = await blogStorage.uploadFeaturedImage(req.files.featuredImage[0], 'temp');
+            imageData = {
+              featuredImageUrl: uploadResult.url,
+              featuredImagePath: uploadResult.path,
+              featuredImageOriginalName: uploadResult.originalName,
+              featuredImageSize: uploadResult.size
+            };
+            console.log('✅ [Blog] Featured image uploaded to Supabase');
+          }
+
+          // Handle additional images
+          if (req.files.images && req.files.images.length > 0) {
+            uploadedImages = await blogStorage.uploadMultipleImages(req.files.images, 'temp');
+            console.log(`✅ [Blog] ${uploadedImages.length} additional images uploaded to Supabase`);
+          }
         } else {
           // Fallback to local storage
-          imageData.featuredImage = req.file.filename;
-          console.log('⚠️ [Blog] Using local storage for featured image');
+          if (req.files.featuredImage && req.files.featuredImage.length > 0) {
+            imageData.featuredImage = req.files.featuredImage[0].filename;
+          }
+          
+          if (req.files.images && req.files.images.length > 0) {
+            uploadedImages = req.files.images.map((file, index) => ({
+              url: `/uploads/blogs/${file.filename}`,
+              path: file.filename,
+              originalName: file.originalname,
+              size: file.size,
+              order: index
+            }));
+          }
+          console.log('⚠️ [Blog] Using local storage for images');
         }
       } catch (error) {
-        console.error('❌ [Blog] Featured image upload failed:', error.message);
-        // Continue with blog creation without image
+        console.error('❌ [Blog] Image upload failed:', error.message);
+        // Continue with blog creation without images
       }
     }
+
+    // Add uploaded images to blog data
+    blogData.images = uploadedImages;
 
     const blog = await Blog.create({ ...blogData, ...imageData });
 
@@ -379,38 +405,70 @@ exports.updateBlog = async (req, res) => {
     if (metaDescription !== undefined) updateData.metaDescription = metaDescription;
     if (isPublic !== undefined) updateData.isPublic = isPublic;
 
-    // Handle featured image upload with Supabase storage
-    if (req.file) {
+    // Handle image uploads with Supabase storage
+    if (req.files) {
       try {
-        // Delete old image from Supabase if exists
-        if (blog.featuredImagePath) {
-          await blogStorage.deleteFeaturedImage(blog.featuredImagePath);
-        } else if (blog.featuredImage) {
-          // Delete old local image if exists
-          try {
-            await fs.unlink(path.join(__dirname, '../uploads/blogs', blog.featuredImage));
-          } catch (err) {
-            console.log('Warning: Could not delete old local featured image:', err.message);
+        // Handle featured image
+        if (req.files.featuredImage && req.files.featuredImage.length > 0) {
+          // Delete old featured image from Supabase if exists
+          if (blog.featuredImagePath) {
+            await blogStorage.deleteFeaturedImage(blog.featuredImagePath);
+          } else if (blog.featuredImage) {
+            // Delete old local image if exists
+            try {
+              await fs.unlink(path.join(__dirname, '../uploads/blogs', blog.featuredImage));
+            } catch (err) {
+              console.log('Warning: Could not delete old local featured image:', err.message);
+            }
+          }
+
+          if (blogStorage.isAvailable()) {
+            // Upload new featured image to Supabase
+            const uploadResult = await blogStorage.uploadFeaturedImage(req.files.featuredImage[0], blog.id);
+            updateData.featuredImageUrl = uploadResult.url;
+            updateData.featuredImagePath = uploadResult.path;
+            updateData.featuredImageOriginalName = uploadResult.originalName;
+            updateData.featuredImageSize = uploadResult.size;
+            updateData.featuredImage = null; // Clear old local filename
+            console.log('✅ [Blog] Featured image updated in Supabase');
+          } else {
+            // Fallback to local storage
+            updateData.featuredImage = req.files.featuredImage[0].filename;
+            console.log('⚠️ [Blog] Using local storage for featured image');
           }
         }
 
-        if (blogStorage.isAvailable()) {
-          // Upload new image to Supabase
-          const uploadResult = await blogStorage.uploadFeaturedImage(req.file, blog.id);
-          updateData.featuredImageUrl = uploadResult.url;
-          updateData.featuredImagePath = uploadResult.path;
-          updateData.featuredImageOriginalName = uploadResult.originalName;
-          updateData.featuredImageSize = uploadResult.size;
-          updateData.featuredImage = null; // Clear old local filename
-          console.log('✅ [Blog] Featured image updated in Supabase');
-        } else {
-          // Fallback to local storage
-          updateData.featuredImage = req.file.filename;
-          console.log('⚠️ [Blog] Using local storage for featured image');
+        // Handle additional images
+        if (req.files.images && req.files.images.length > 0) {
+          // Delete old additional images if they exist
+          if (blog.images && Array.isArray(blog.images) && blog.images.length > 0) {
+            const oldImagePaths = blog.images.map(img => img.path).filter(Boolean);
+            if (oldImagePaths.length > 0) {
+              await blogStorage.deleteMultipleImages(oldImagePaths);
+            }
+          }
+
+          let uploadedImages = [];
+          if (blogStorage.isAvailable()) {
+            // Upload new images to Supabase
+            uploadedImages = await blogStorage.uploadMultipleImages(req.files.images, blog.id);
+            console.log(`✅ [Blog] ${uploadedImages.length} additional images updated in Supabase`);
+          } else {
+            // Fallback to local storage
+            uploadedImages = req.files.images.map((file, index) => ({
+              url: `/uploads/blogs/${file.filename}`,
+              path: file.filename,
+              originalName: file.originalname,
+              size: file.size,
+              order: index
+            }));
+            console.log('⚠️ [Blog] Using local storage for images');
+          }
+          updateData.images = uploadedImages;
         }
       } catch (error) {
-        console.error('❌ [Blog] Featured image upload failed:', error.message);
-        // Continue with blog update without image change
+        console.error('❌ [Blog] Image upload failed:', error.message);
+        // Continue with blog update without image changes
       }
     }
 
@@ -465,6 +523,14 @@ exports.deleteBlog = async (req, res) => {
         await fs.unlink(path.join(__dirname, '../uploads/blogs', blog.featuredImage));
       } catch (err) {
         console.log('Warning: Could not delete local featured image:', err.message);
+      }
+    }
+
+    // Delete additional images from Supabase or local storage
+    if (blog.images && Array.isArray(blog.images) && blog.images.length > 0) {
+      const imagePaths = blog.images.map(img => img.path).filter(Boolean);
+      if (imagePaths.length > 0) {
+        await blogStorage.deleteMultipleImages(imagePaths);
       }
     }
 

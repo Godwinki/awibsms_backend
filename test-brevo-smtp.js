@@ -30,7 +30,7 @@ async function testBrevoSMTP() {
     
     // Send test email
     const mailOptions = {
-      from: `"AWIB SACCO Test" <${process.env.EMAIL_FROM}>`,
+      from: `"AWIB SACCOS Test" <${process.env.EMAIL_FROM}>`,
       to: 'godwinkiwovel@gmail.com',
       subject: 'Brevo SMTP Test - AWIB SACCO',
       html: `
