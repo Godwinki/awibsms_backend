@@ -22,6 +22,7 @@ router.delete('/:id', apiLimiter, publicDocumentController.deleteDocument);
 // Additional utility routes
 router.get('/categories', apiLimiter, publicDocumentController.getCategories);
 router.get('/document-types', apiLimiter, publicDocumentController.getDocumentTypes);
+router.get('/stats/downloads', apiLimiter, publicDocumentController.getDownloadStats);
 router.get('/:id', apiLimiter, publicDocumentController.getDocumentById);
 
 module.exports = router;
